@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useNotifications } from '@/composables/useNotifications'
 
-const { notifications, loading, startPolling, stopPolling } = useNotifications()
+const { notifications, loading, includeMaster, startPolling, stopPolling } = useNotifications()
 
 function formatTime(ts: string): string {
   const d = new Date(ts)
@@ -36,6 +36,14 @@ onUnmounted(() => stopPolling())
         </div>
       </div>
       <p class="page-desc">Live trade feed across all tracked accounts</p>
+    </div>
+
+    <div class="master-toggle">
+      <label class="toggle-label">
+        <input type="checkbox" v-model="includeMaster" class="toggle-input" />
+        <span class="toggle-switch" />
+        <span class="toggle-text">Master notifications</span>
+      </label>
     </div>
 
     <div v-if="notifications.length === 0" class="empty-state">
@@ -80,7 +88,7 @@ onUnmounted(() => stopPolling())
               </template>
             </span>
             <span v-if="n.profit !== null" class="feed-pnl" :class="n.profit >= 0 ? 'pnl-up' : 'pnl-down'">
-              {{ n.profit >= 0 ? '+' : '' }}${{ n.profit.toFixed(2) }}
+              {{ n.profit >= 0 ? '+$' + n.profit.toFixed(2) : '-$' + Math.abs(n.profit).toFixed(2) }}
             </span>
             <span v-if="n.is_open" class="feed-live-badge">OPEN</span>
           </div>
@@ -139,6 +147,59 @@ onUnmounted(() => stopPolling())
   font-size: 13px;
   color: var(--text-tertiary);
   margin: 4px 0 0;
+}
+
+/* ─── Master toggle ─── */
+.master-toggle {
+  margin-bottom: 16px;
+}
+
+.toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-input {
+  display: none;
+}
+
+.toggle-switch {
+  width: 34px;
+  height: 18px;
+  background: var(--border);
+  border-radius: 9px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: var(--text-tertiary);
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.toggle-input:checked + .toggle-switch {
+  background: var(--accent-muted);
+}
+
+.toggle-input:checked + .toggle-switch::after {
+  transform: translateX(16px);
+  background: var(--accent);
+}
+
+.toggle-text {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 /* ─── Empty ─── */
@@ -317,9 +378,9 @@ onUnmounted(() => stopPolling())
   text-align: right;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .notifications-view {
-    padding: 16px;
+    padding: 16px 12px;
   }
 
   .page-title-row h1 {
@@ -337,6 +398,14 @@ onUnmounted(() => stopPolling())
 
   .feed-account {
     font-size: 12px;
+  }
+
+  .feed-symbol {
+    font-size: 11px;
+  }
+
+  .feed-bottom {
+    gap: 8px;
   }
 }
 </style>

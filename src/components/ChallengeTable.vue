@@ -13,46 +13,42 @@ function formatCurrency(val: number): string {
   return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function progressColor(progress: number): string {
-  if (progress >= 80) return 'var(--green)'
-  if (progress >= 50) return 'var(--cyan)'
-  if (progress >= 20) return 'var(--orange)'
-  return 'var(--text-tertiary)'
-}
-
 function formatPnl(val: number): string {
-  const prefix = val >= 0 ? '+' : ''
-  return `${prefix}$${Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const abs = Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (val >= 0) return `+$${abs}`
+  return `-$${abs}`
 }
 
 function pnlClass(val: number): string {
-  if (val > 0) return 'pnl-up'
-  if (val < 0) return 'pnl-down'
+  if (val > 0) return 'pnl-positive'
+  if (val < 0) return 'pnl-negative'
   return ''
 }
 
-function ddWarningClass(current: number, max: number): string {
-  if (max <= 0) return ''
-  const ratio = current / max
-  if (ratio >= 0.9) return 'dd-danger'
-  if (ratio >= 0.7) return 'dd-warning'
-  return ''
-}
-
-function statusClass(status: string): string {
-  if (status === 'Passed') return 'status-passed'
-  if (status === 'Failed') return 'status-failed'
-  return 'status-active'
-}
 
 function stateClass(state: string): string {
   return state === 'Connected' ? 'state-connected' : 'state-disconnected'
 }
+
+function formatLastTrade(ts: string | null): string {
+  if (!ts) return '---'
+  const d = new Date(ts)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMin = Math.floor(diffMs / 60_000)
+  if (diffMin < 1) return 'just now'
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `${diffHr}h ago`
+  const diffDays = Math.floor(diffHr / 24)
+  if (diffDays < 7) return `${diffDays}d ago`
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
 </script>
 
 <template>
-  <!-- Desktop table -->
-  <div class="table-wrapper">
+  <!-- Desktop: scrollable table -->
+  <div class="table-wrapper desktop-table">
     <table class="challenge-table">
       <thead>
         <tr>
@@ -63,19 +59,20 @@ function stateClass(state: string): string {
           <th>Platform</th>
           <th class="text-right">Balance</th>
           <th class="text-right">Equity</th>
-          <th class="text-right">P&L</th>
+          <th class="text-right">PNL</th>
+          <th class="text-right">TP</th>
+          <th class="text-right">SL</th>
           <th class="text-right">Target</th>
           <th>Progress</th>
-          <th class="text-right">DD</th>
-          <th>Status</th>
           <th>State</th>
           <th class="text-right">Trades</th>
+          <th>Last Trade</th>
           <th class="th-actions"></th>
         </tr>
       </thead>
       <tbody>
         <tr v-if="rows.length === 0">
-          <td colspan="14" class="empty-state">
+          <td colspan="16" class="empty-state">
             <div class="empty-inner">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -88,10 +85,7 @@ function stateClass(state: string): string {
         <tr v-for="(row, i) in rows" :key="row.id" :style="{ 'animation-delay': `${i * 30}ms` }">
           <td>
             <div class="account-cell">
-              <div class="account-name-row">
-                <span class="account-alias">{{ row.alias }}</span>
-                <span v-if="row.is_master" class="chip chip-master">MASTER</span>
-              </div>
+              <span class="account-alias">{{ row.alias }}</span>
               <span class="account-login">{{ row.login_number }}</span>
             </div>
           </td>
@@ -105,29 +99,54 @@ function stateClass(state: string): string {
           <td class="text-secondary">{{ row.platform }}</td>
           <td class="text-right mono">{{ formatCurrency(row.balance) }}</td>
           <td class="text-right mono">{{ formatCurrency(row.equity) }}</td>
-          <td class="text-right mono" :class="pnlClass(row.pnl)">{{ formatPnl(row.pnl) }}</td>
+          <td class="text-right mono" :class="pnlClass(row.open_pnl)">
+            <template v-if="row.open_positions.length > 0">
+              <div v-for="(pos, pi) in row.open_positions" :key="pi" :class="pnlClass(pos.profit)">
+                {{ formatPnl(pos.profit) }}
+              </div>
+            </template>
+            <span v-else class="text-ghost">---</span>
+          </td>
+          <td class="text-right mono">
+            <template v-if="row.open_positions.length > 0">
+              <div v-for="(pos, pi) in row.open_positions" :key="pi" class="tp-value">
+                {{ pos.tpPnl !== null ? formatPnl(pos.tpPnl) : '---' }}
+              </div>
+            </template>
+            <span v-else class="text-ghost">---</span>
+          </td>
+          <td class="text-right mono">
+            <template v-if="row.open_positions.length > 0">
+              <div v-for="(pos, pi) in row.open_positions" :key="pi" class="sl-value">
+                {{ pos.slPnl !== null ? formatPnl(pos.slPnl) : '---' }}
+              </div>
+            </template>
+            <span v-else class="text-ghost">---</span>
+          </td>
           <td class="text-right mono text-secondary">{{ row.target_pct }}%</td>
           <td>
             <div class="progress-cell">
-              <div class="progress-track">
-                <div
-                  class="progress-fill"
-                  :style="{ width: `${Math.min(row.progress, 100)}%`, background: progressColor(row.progress) }"
-                />
+              <div class="progress-bidir">
+                <div class="progress-half loss-half">
+                  <div
+                    v-if="row.progress < 0"
+                    class="progress-fill-loss"
+                    :style="{ width: `${Math.min(Math.abs(row.progress) / row.target_pct * 100, 100)}%` }"
+                  />
+                </div>
+                <div class="progress-center" />
+                <div class="progress-half profit-half">
+                  <div
+                    v-if="row.progress > 0"
+                    class="progress-fill-profit"
+                    :style="{ width: `${Math.min(row.progress / row.target_pct * 100, 100)}%` }"
+                  />
+                </div>
               </div>
-              <span class="progress-text" :style="{ color: progressColor(row.progress) }">
+              <span class="progress-text" :style="{ color: row.progress >= 0 ? 'var(--green)' : 'var(--red)' }">
                 {{ row.progress }}%
               </span>
             </div>
-          </td>
-          <td class="text-right">
-            <span class="mono dd-value" :class="ddWarningClass(row.current_dd, row.max_dd_pct)">
-              {{ row.current_dd }}%
-            </span>
-            <span class="dd-limit"> / {{ row.max_dd_pct }}%</span>
-          </td>
-          <td>
-            <span class="chip" :class="statusClass(row.challenge_status)">{{ row.challenge_status }}</span>
           </td>
           <td>
             <div class="state-cell" :class="stateClass(row.state)">
@@ -136,6 +155,7 @@ function stateClass(state: string): string {
             </div>
           </td>
           <td class="text-right mono">{{ row.trades_count }}</td>
+          <td class="text-ghost mono-sm">{{ formatLastTrade(row.last_trade) }}</td>
           <td>
             <button class="btn-delete" title="Remove" @click="emit('delete', row.id)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -148,7 +168,7 @@ function stateClass(state: string): string {
     </table>
   </div>
 
-  <!-- Mobile card layout -->
+  <!-- Mobile: card layout -->
   <div class="mobile-cards">
     <div v-if="rows.length === 0" class="empty-state-mobile">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
@@ -160,89 +180,102 @@ function stateClass(state: string): string {
     <div
       v-for="(row, i) in rows"
       :key="row.id"
-      class="mobile-card"
-      :style="{ 'animation-delay': `${i * 40}ms` }"
+      class="challenge-card"
+      :style="{ 'animation-delay': `${i * 30}ms` }"
     >
       <div class="card-header">
-        <div class="card-title">
-          <span class="card-alias">{{ row.alias }}</span>
+        <div class="card-account">
+          <span class="account-alias">{{ row.alias }}</span>
+          <span class="account-login">{{ row.login_number }}</span>
+        </div>
+        <div class="card-header-right">
           <div class="state-cell" :class="stateClass(row.state)">
             <span class="state-dot" />
             <span>{{ row.state }}</span>
           </div>
+          <button class="btn-delete" title="Remove" @click="emit('delete', row.id)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6 6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </div>
-        <button class="btn-delete" title="Remove" @click="emit('delete', row.id)">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6 6 18M6 6l12 12"/>
-          </svg>
-        </button>
       </div>
 
       <div class="card-chips">
-        <span v-if="row.is_master" class="chip chip-master">MASTER</span>
         <span class="chip chip-firm">{{ row.prop_firm }}</span>
         <span class="chip chip-phase">{{ row.phase }}</span>
-        <span class="card-platform">{{ row.platform }}</span>
+        <span class="card-owner">{{ row.owner }}</span>
       </div>
 
-      <div class="card-financials">
-        <div class="card-fin-item">
-          <span class="card-fin-label">Balance</span>
-          <span class="card-fin-value">{{ formatCurrency(row.balance) }}</span>
+      <div class="card-grid">
+        <div class="card-stat">
+          <span class="card-label">Balance</span>
+          <span class="card-value mono">{{ formatCurrency(row.balance) }}</span>
         </div>
-        <div class="card-fin-item">
-          <span class="card-fin-label">Equity</span>
-          <span class="card-fin-value">{{ formatCurrency(row.equity) }}</span>
+        <div class="card-stat">
+          <span class="card-label">Equity</span>
+          <span class="card-value mono">{{ formatCurrency(row.equity) }}</span>
         </div>
-        <div class="card-fin-item">
-          <span class="card-fin-label">P&L</span>
-          <span class="card-fin-value" :class="pnlClass(row.pnl)">{{ formatPnl(row.pnl) }}</span>
+        <div class="card-stat">
+          <span class="card-label">PNL</span>
+          <div class="card-value mono" :class="pnlClass(row.open_pnl)">
+            <template v-if="row.open_positions.length > 0">
+              <div v-for="(pos, pi) in row.open_positions" :key="pi" :class="pnlClass(pos.profit)">
+                {{ formatPnl(pos.profit) }}
+              </div>
+            </template>
+            <span v-else class="text-ghost">---</span>
+          </div>
+        </div>
+        <div class="card-stat">
+          <span class="card-label">Target</span>
+          <span class="card-value mono text-secondary">{{ row.target_pct }}%</span>
+        </div>
+        <div class="card-stat">
+          <span class="card-label">Trades</span>
+          <span class="card-value mono">{{ row.trades_count }}</span>
+        </div>
+        <div class="card-stat">
+          <span class="card-label">Last Trade</span>
+          <span class="card-value mono-sm text-ghost">{{ formatLastTrade(row.last_trade) }}</span>
         </div>
       </div>
 
-      <div class="card-row-dd">
-        <div class="card-fin-item">
-          <span class="card-fin-label">Drawdown</span>
-          <span class="card-fin-value">
-            <span :class="ddWarningClass(row.current_dd, row.max_dd_pct)">{{ row.current_dd }}%</span>
-            <span class="dd-limit"> / {{ row.max_dd_pct }}%</span>
-          </span>
-        </div>
-        <div class="card-fin-item" style="align-items: flex-end;">
-          <span class="card-fin-label">Trades</span>
-          <span class="card-fin-value">{{ row.trades_count }}</span>
-        </div>
-        <div class="card-fin-item" style="align-items: flex-end;">
-          <span class="card-fin-label">Status</span>
-          <span class="chip" :class="statusClass(row.challenge_status)" style="font-size: 10px;">{{ row.challenge_status }}</span>
+      <div v-if="row.open_positions.length > 0" class="card-positions">
+        <div v-for="(pos, pi) in row.open_positions" :key="pi" class="card-pos-row">
+          <span class="card-pos-pnl" :class="pnlClass(pos.profit)">{{ formatPnl(pos.profit) }}</span>
+          <span class="tp-value">TP {{ pos.tpPnl !== null ? formatPnl(pos.tpPnl) : '---' }}</span>
+          <span class="sl-value">SL {{ pos.slPnl !== null ? formatPnl(pos.slPnl) : '---' }}</span>
         </div>
       </div>
 
       <div class="card-progress">
-        <div class="card-progress-header">
-          <span class="card-fin-label">Progress</span>
-          <span class="progress-text" :style="{ color: progressColor(row.progress) }">
-            {{ row.progress }}% / {{ row.target_pct }}%
-          </span>
+        <div class="progress-bidir">
+          <div class="progress-half loss-half">
+            <div
+              v-if="row.progress < 0"
+              class="progress-fill-loss"
+              :style="{ width: `${Math.min(Math.abs(row.progress) / row.target_pct * 100, 100)}%` }"
+            />
+          </div>
+          <div class="progress-center" />
+          <div class="progress-half profit-half">
+            <div
+              v-if="row.progress > 0"
+              class="progress-fill-profit"
+              :style="{ width: `${Math.min(row.progress / row.target_pct * 100, 100)}%` }"
+            />
+          </div>
         </div>
-        <div class="progress-track">
-          <div
-            class="progress-fill"
-            :style="{ width: `${Math.min(row.progress, 100)}%`, background: progressColor(row.progress) }"
-          />
-        </div>
-      </div>
-
-      <div class="card-meta">
-        <span>{{ row.owner }}</span>
-        <span class="card-login">{{ row.login_number }}</span>
+        <span class="progress-text" :style="{ color: row.progress >= 0 ? 'var(--green)' : 'var(--red)' }">
+          {{ row.progress }}%
+        </span>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* ─── Desktop table ─── */
 .table-wrapper {
   overflow-x: auto;
   border: 1px solid var(--border-subtle);
@@ -256,6 +289,7 @@ function stateClass(state: string): string {
   font-size: 13px;
 }
 
+/* ─── Header ─── */
 .challenge-table th {
   padding: 10px 14px;
   text-align: left;
@@ -284,6 +318,7 @@ function stateClass(state: string): string {
   width: 44px;
 }
 
+/* ─── Rows ─── */
 .challenge-table td {
   padding: 11px 14px;
   border-bottom: 1px solid var(--border-subtle);
@@ -311,17 +346,40 @@ function stateClass(state: string): string {
 .mono { font-family: var(--font-mono); font-size: 13px; }
 .mono-sm { font-family: var(--font-mono); font-size: 11px; }
 
+/* ─── PNL ─── */
+.challenge-table td.pnl-positive { color: var(--green); font-weight: 600; }
+.challenge-table td.pnl-negative { color: var(--red); font-weight: 600; }
+
+/* ─── TP / SL ─── */
+.tp-sl-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  line-height: 1.6;
+}
+
+.tp-symbol {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
+
+.tp-value {
+  color: var(--green);
+  font-size: 12px;
+}
+
+.sl-value {
+  color: var(--red);
+  font-size: 12px;
+}
+
 /* ─── Account cell ─── */
 .account-cell {
   display: flex;
   flex-direction: column;
   gap: 1px;
-}
-
-.account-name-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .account-alias {
@@ -360,74 +418,60 @@ function stateClass(state: string): string {
   border: 1px solid rgba(165, 94, 234, 0.12);
 }
 
-.chip-master {
-  background: var(--orange-muted);
-  color: var(--orange);
-  border: 1px solid rgba(255, 159, 67, 0.12);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  padding: 1px 5px;
-}
-
-/* ─── P&L ─── */
-.pnl-up { color: var(--green); }
-.pnl-down { color: var(--red); }
-
-/* ─── Drawdown ─── */
-.dd-value {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.dd-limit {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-ghost);
-}
-
-.dd-warning { color: var(--orange); }
-.dd-danger { color: var(--red); }
-
-/* ─── Status chips ─── */
-.status-active {
-  background: var(--cyan-muted);
-  color: var(--cyan);
-  border: 1px solid rgba(24, 220, 255, 0.12);
-}
-
-.status-passed {
-  background: var(--green-muted);
-  color: var(--green);
-  border: 1px solid rgba(0, 212, 170, 0.12);
-}
-
-.status-failed {
-  background: var(--red-muted);
-  color: var(--red);
-  border: 1px solid rgba(255, 71, 87, 0.12);
-}
-
 /* ─── Progress ─── */
 .progress-cell {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 130px;
+  min-width: 150px;
 }
 
-.progress-track {
+.progress-bidir {
   flex: 1;
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  height: 6px;
+  gap: 0;
 }
 
-.progress-fill {
+.progress-half {
+  flex: 1;
   height: 100%;
-  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+  position: relative;
+}
+
+.loss-half {
+  border-radius: 3px 0 0 3px;
+  direction: rtl;
+}
+
+.profit-half {
+  border-radius: 0 3px 3px 0;
+}
+
+.progress-center {
+  width: 2px;
+  height: 10px;
+  background: var(--text-tertiary);
+  flex-shrink: 0;
+  border-radius: 1px;
+}
+
+.progress-fill-profit {
+  height: 100%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  border-radius: 0 3px 3px 0;
+  transition: width 0.4s var(--ease-out);
+}
+
+.progress-fill-loss {
+  height: 100%;
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red);
+  border-radius: 3px 0 0 3px;
   transition: width 0.4s var(--ease-out);
 }
 
@@ -435,7 +479,7 @@ function stateClass(state: string): string {
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
-  min-width: 42px;
+  min-width: 48px;
   text-align: right;
 }
 
@@ -509,141 +553,140 @@ function stateClass(state: string): string {
   color: var(--red);
 }
 
-/* ─── Mobile cards (hidden by default) ─── */
+/* ─── Mobile cards (hidden on desktop) ─── */
 .mobile-cards {
   display: none;
 }
 
-.empty-state-mobile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 52px 20px;
-  color: var(--text-tertiary);
-  font-size: 13px;
-  text-align: center;
-}
-
-.mobile-card {
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 14px;
-  margin-bottom: 8px;
-  animation: fadeInUp 0.35s var(--ease-out) both;
-}
-
-.card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.card-title {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.card-alias {
-  font-family: var(--font-ui);
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--text-primary);
-}
-
-.card-chips {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-
-.card-platform {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-tertiary);
-}
-
-.card-financials {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.card-fin-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.card-fin-label {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-tertiary);
-}
-
-.card-fin-value {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.card-row-dd {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.card-progress {
-  margin-bottom: 10px;
-}
-
-.card-progress-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.card-progress .progress-track {
-  height: 5px;
-}
-
-.card-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-family: var(--font-ui);
-  font-size: 12px;
-  color: var(--text-tertiary);
-  padding-top: 8px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.card-login {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-ghost);
-}
-
-/* ─── Responsive: swap table for cards ─── */
 @media (max-width: 768px) {
-  .table-wrapper {
+  .desktop-table {
     display: none;
   }
 
   .mobile-cards {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .empty-state-mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 52px 20px;
+    color: var(--text-tertiary);
+    font-size: 13px;
+    text-align: center;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+  }
+
+  .challenge-card {
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    animation: fadeInUp 0.35s var(--ease-out) both;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .card-account {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .card-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .card-owner {
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .card-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .card-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+  }
+
+  .card-value {
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+
+  .card-value.pnl-positive { color: var(--green); font-weight: 600; }
+  .card-value.pnl-negative { color: var(--red); font-weight: 600; }
+  .card-value .pnl-positive { color: var(--green); font-weight: 600; }
+  .card-value .pnl-negative { color: var(--red); font-weight: 600; }
+
+  .card-positions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border-subtle);
+    margin-bottom: 8px;
+  }
+
+  .card-pos-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .card-pos-pnl {
+    font-weight: 600;
+    min-width: 70px;
+  }
+
+  .card-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .card-progress .progress-bidir {
+    flex: 1;
   }
 }
 </style>

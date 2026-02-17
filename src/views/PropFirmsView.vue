@@ -205,9 +205,9 @@ const propFirms: PropFirmConfig[] = [
 .text-accent { color: var(--accent); }
 .text-red { color: var(--red); opacity: 0.7; }
 
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .propfirms-view {
-    padding: 16px;
+    padding: 16px 12px;
   }
 
   .propfirms-view h1 {
@@ -216,7 +216,6 @@ const propFirms: PropFirmConfig[] = [
 
   .firms-grid {
     grid-template-columns: 1fr;
-    gap: 10px;
   }
 }
 </style>

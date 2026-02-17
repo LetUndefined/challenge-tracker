@@ -1,21 +1,21 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useNotifications } from '@/composables/useNotifications'
 
 const route = useRoute()
 const { unreadCount } = useNotifications()
+const mobileOpen = ref(false)
 
 const navItems = [
-  { path: '/', label: 'Challenges', icon: 'grid' },
-  { path: '/notifications', label: 'Alerts', icon: 'bell' },
-  { path: '/prop-firms', label: 'Firms', icon: 'building' },
-  { path: '/owners', label: 'Owners', icon: 'users' },
+  { path: '/', label: 'Challenges' },
+  { path: '/notifications', label: 'Notifications' },
+  { path: '/prop-firms', label: 'Prop Firms' },
+  { path: '/owners', label: 'Owners' },
 ]
 </script>
 
 <template>
-  <!-- Desktop top nav -->
   <nav class="navbar">
     <div class="navbar-inner">
       <div class="navbar-brand">
@@ -28,13 +28,14 @@ const navItems = [
         <span class="brand-text">CHALLENGE<span class="brand-accent">TRACKER</span></span>
       </div>
 
-      <div class="navbar-links">
+      <div class="navbar-links" :class="{ open: mobileOpen }">
         <router-link
           v-for="item in navItems"
           :key="item.path"
           :to="item.path"
           class="nav-link"
           :class="{ active: route.path === item.path }"
+          @click="mobileOpen = false"
         >
           <span class="nav-label">{{ item.label }}</span>
           <span class="nav-indicator" />
@@ -52,45 +53,12 @@ const navItems = [
           <span class="live-dot" />
           <span class="live-text">LIVE</span>
         </div>
+        <button class="hamburger" @click="mobileOpen = !mobileOpen" :class="{ open: mobileOpen }">
+          <span /><span /><span />
+        </button>
       </div>
     </div>
     <div class="navbar-border" />
-  </nav>
-
-  <!-- Mobile bottom nav -->
-  <nav class="mobile-nav">
-    <router-link
-      v-for="item in navItems"
-      :key="item.path"
-      :to="item.path"
-      class="mobile-nav-item"
-      :class="{ active: route.path === item.path }"
-    >
-      <!-- Grid icon -->
-      <svg v-if="item.icon === 'grid'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-      </svg>
-      <!-- Bell icon -->
-      <svg v-if="item.icon === 'bell'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-      </svg>
-      <!-- Building icon -->
-      <svg v-if="item.icon === 'building'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22V12h6v10"/>
-        <path d="M8 6h.01M16 6h.01M12 6h.01M8 10h.01M16 10h.01M12 10h.01"/>
-      </svg>
-      <!-- Users icon -->
-      <svg v-if="item.icon === 'users'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-      </svg>
-      <span class="mobile-nav-label">{{ item.label }}</span>
-      <span
-        v-if="item.path === '/notifications' && unreadCount > 0"
-        class="mobile-badge"
-      />
-    </router-link>
   </nav>
 </template>
 
@@ -232,74 +200,92 @@ const navItems = [
   color: var(--green);
 }
 
-/* ─── Mobile bottom nav ─── */
-.mobile-nav {
+/* ─── Hamburger ─── */
+.hamburger {
   display: none;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  background: var(--bg-elevated);
-  border-top: 1px solid var(--border);
-  padding: env(safe-area-inset-bottom, 0) 0 0;
-}
-
-.mobile-nav-item {
-  position: relative;
-  display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 8px 0 10px;
-  text-decoration: none;
-  color: var(--text-tertiary);
-  transition: color 0.15s;
+  justify-content: center;
+  gap: 4px;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  padding: 7px;
+  margin-left: 8px;
 }
 
-.mobile-nav-item.active {
-  color: var(--accent);
+.hamburger span {
+  display: block;
+  height: 1.5px;
+  background: var(--text-secondary);
+  border-radius: 1px;
+  transition: transform 0.2s, opacity 0.2s;
 }
 
-.mobile-nav-label {
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+.hamburger.open span:nth-child(1) {
+  transform: translateY(5.5px) rotate(45deg);
 }
 
-.mobile-badge {
-  position: absolute;
-  top: 4px;
-  right: calc(50% - 14px);
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--red);
+.hamburger.open span:nth-child(2) {
+  opacity: 0;
 }
 
-/* ─── Responsive ─── */
-@media (max-width: 768px) {
-  .navbar {
-    position: relative;
-  }
+.hamburger.open span:nth-child(3) {
+  transform: translateY(-5.5px) rotate(-45deg);
+}
 
+@media (max-width: 640px) {
   .navbar-inner {
     padding: 0 16px;
-    height: 48px;
+  }
+
+  .brand-text {
+    font-size: 11px;
+  }
+
+  .hamburger {
+    display: flex;
   }
 
   .navbar-links {
     display: none;
+    position: absolute;
+    top: 52px;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    gap: 0;
+    z-index: 99;
   }
 
-  .navbar-right {
+  .navbar-links.open {
     display: flex;
   }
 
-  .mobile-nav {
-    display: flex;
-    justify-content: space-around;
+  .nav-link {
+    padding: 12px 8px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .nav-link:last-child {
+    border-bottom: none;
+  }
+
+  .nav-indicator {
+    display: none;
+  }
+
+  .nav-link.active {
+    color: var(--accent);
+  }
+
+  .live-indicator {
+    padding: 3px 8px;
   }
 }
 </style>

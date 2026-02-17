@@ -177,9 +177,9 @@ function avatarColor(index: number): string {
   color: var(--text-tertiary);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .owners-view {
-    padding: 16px;
+    padding: 16px 12px;
   }
 
   .owners-view h1 {

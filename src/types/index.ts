@@ -11,8 +11,6 @@ export interface Challenge {
   owner: string
   login_number: string
   login_server: string
-  is_master: boolean
-  cost: number
   created_at: string
 }
 
@@ -56,6 +54,7 @@ export interface MetaCopierAccount {
   connected: boolean
   trades_count: number
   unrealized_pnl: number
+  is_master: boolean
 }
 
 export interface MetaCopierTrade {
@@ -87,14 +86,10 @@ export interface ChallengeRow {
   starting_balance: number
   target_pct: number
   progress: number       // (profit / target) * 100
-  pnl: number            // equity - starting_balance
-  daily_dd_pct: number   // max allowed daily drawdown
-  max_dd_pct: number     // max allowed overall drawdown
-  current_dd: number     // current drawdown % from peak
-  state: 'Connected' | 'Disconnected'
-  challenge_status: 'Active' | 'Passed' | 'Failed'
+  open_pnl: number       // live PNL from open positions
+  open_positions: { symbol: string; side: string; tp: number | null; sl: number | null; volume: number; profit: number; tpPnl: number | null; slPnl: number | null }[]
   is_master: boolean
-  cost: number
+  state: 'Connected' | 'Disconnected'
   trades_count: number
   last_trade: string | null
   login_number: string

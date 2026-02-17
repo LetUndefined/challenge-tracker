@@ -37,15 +37,4 @@ import NavBar from './components/NavBar.vue'
   position: relative;
   z-index: 1;
 }
-
-@media (max-width: 768px) {
-  .app-content {
-    padding-bottom: 64px; /* space for mobile bottom nav */
-  }
-
-  .ambient-glow {
-    width: 300px;
-    height: 120px;
-  }
-}
 </style>

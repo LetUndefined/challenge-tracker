@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useMetaCopier } from './useMetaCopier'
 import { useChallenges } from './useChallenges'
@@ -23,6 +23,7 @@ export interface TradeNotification {
 const notifications = ref<TradeNotification[]>([])
 const seenTradeIds = ref<Set<string>>(new Set())
 const loading = ref(false)
+const includeMaster = ref(false)
 
 let pollInterval: ReturnType<typeof setInterval> | null = null
 
@@ -34,8 +35,11 @@ export function useNotifications() {
     loading.value = true
     try {
       for (const ch of challenges.value) {
-        const trades = await fetchTrades(ch.metacopier_account_id)
         const row = challengeRows.value.find(r => r.id === ch.id)
+        // Skip master accounts unless toggled on
+        if (row?.is_master && !includeMaster.value) continue
+
+        const trades = await fetchTrades(ch.metacopier_account_id)
         const alias = row?.alias ?? ch.alias ?? ch.login_number
 
         for (const trade of trades) {
@@ -71,6 +75,25 @@ export function useNotifications() {
     }
   }
 
+  // When master toggle changes, add/remove master notifications
+  watch(includeMaster, (val) => {
+    if (!val) {
+      // Remove master notifications and clear their seen IDs
+      const masterRows = challengeRows.value.filter(r => r.is_master)
+      const masterAccountIds = new Set(masterRows.map(r => r.metacopier_account_id))
+      const toRemove = notifications.value.filter(n => {
+        const row = challengeRows.value.find(r => r.id === n.challenge_id)
+        return row && masterAccountIds.has(row.metacopier_account_id)
+      })
+      for (const n of toRemove) {
+        seenTradeIds.value.delete(n.id)
+      }
+      notifications.value = notifications.value.filter(n => !toRemove.includes(n))
+    } else {
+      pollForNewTrades()
+    }
+  })
+
   function startPolling(intervalMs = 15_000) {
     stopPolling()
     pollForNewTrades()
@@ -94,6 +117,7 @@ export function useNotifications() {
     notifications,
     loading,
     unreadCount,
+    includeMaster,
     pollForNewTrades,
     startPolling,
     stopPolling,

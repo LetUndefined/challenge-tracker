@@ -148,15 +148,3 @@ body::before {
     transform: translateY(0) scale(1);
   }
 }
-
-/* ─── Touch-friendly targets ─── */
-@media (max-width: 768px) {
-  input, select, button {
-    min-height: 44px;
-    font-size: 16px; /* prevents iOS zoom on focus */
-  }
-
-  select {
-    font-size: 14px;
-  }
-}

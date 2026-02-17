@@ -1,13 +1,13 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useMetaCopier } from './useMetaCopier'
-import type { Challenge, ChallengeRow, MetaCopierAccount, ServerMapping, PropFirmConfig } from '@/types'
+import type { Challenge, ChallengeRow, MetaCopierAccount, ServerMapping } from '@/types'
 
 const challenges = ref<Challenge[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 
-// Server name -> prop firm mapping (user can extend)
+// Server name → prop firm mapping (user can extend)
 const serverMappings: ServerMapping[] = [
   { pattern: 'FTMO', prop_firm: 'FTMO' },
   { pattern: 'TheFive', prop_firm: 'The 5%ers' },
@@ -24,65 +24,6 @@ const serverMappings: ServerMapping[] = [
   { pattern: 'Alpha', prop_firm: 'Alpha Capital' },
 ]
 
-// Prop firm rules for drawdown limits
-const propFirmRules: PropFirmConfig[] = [
-  { id: '1', name: 'FTMO', phases: [
-    { name: 'Phase 1', target_pct: 10, daily_dd_pct: 5, max_dd_pct: 10 },
-    { name: 'Phase 2', target_pct: 5, daily_dd_pct: 5, max_dd_pct: 10 },
-    { name: 'Funded', target_pct: 0, daily_dd_pct: 5, max_dd_pct: 10 },
-  ]},
-  { id: '2', name: 'The 5%ers', phases: [
-    { name: 'Phase 1', target_pct: 8, daily_dd_pct: 5, max_dd_pct: 10 },
-    { name: 'Phase 2', target_pct: 5, daily_dd_pct: 5, max_dd_pct: 10 },
-    { name: 'Funded', target_pct: 0, daily_dd_pct: 5, max_dd_pct: 10 },
-  ]},
-  { id: '3', name: 'FundedHive', phases: [
-    { name: 'Phase 1', target_pct: 8, daily_dd_pct: 5, max_dd_pct: 8 },
-    { name: 'Phase 2', target_pct: 5, daily_dd_pct: 5, max_dd_pct: 8 },
-    { name: 'Funded', target_pct: 0, daily_dd_pct: 5, max_dd_pct: 8 },
-  ]},
-  { id: '4', name: 'FundedNext', phases: [
-    { name: 'Phase 1', target_pct: 10, daily_dd_pct: 5, max_dd_pct: 10 },
-    { name: 'Phase 2', target_pct: 5, daily_dd_pct: 5, max_dd_pct: 10 },
-    { name: 'Funded', target_pct: 0, daily_dd_pct: 5, max_dd_pct: 10 },
-  ]},
-  { id: '5', name: 'MyFundedFX', phases: [
-    { name: 'Phase 1', target_pct: 8, daily_dd_pct: 5, max_dd_pct: 12 },
-    { name: 'Phase 2', target_pct: 5, daily_dd_pct: 5, max_dd_pct: 12 },
-    { name: 'Funded', target_pct: 0, daily_dd_pct: 5, max_dd_pct: 12 },
-  ]},
-  { id: '6', name: 'E8 Funding', phases: [
-    { name: 'Phase 1', target_pct: 8, daily_dd_pct: 5, max_dd_pct: 8 },
-    { name: 'Funded', target_pct: 0, daily_dd_pct: 5, max_dd_pct: 8 },
-  ]},
-  { id: '7', name: 'Alpha Capital', phases: [
-    { name: 'Phase 1', target_pct: 8, daily_dd_pct: 5, max_dd_pct: 10 },
-    { name: 'Phase 2', target_pct: 5, daily_dd_pct: 5, max_dd_pct: 10 },
-    { name: 'Funded', target_pct: 0, daily_dd_pct: 5, max_dd_pct: 10 },
-  ]},
-  { id: '8', name: 'SurgeTrader', phases: [
-    { name: 'Phase 1', target_pct: 10, daily_dd_pct: 5, max_dd_pct: 8 },
-    { name: 'Funded', target_pct: 0, daily_dd_pct: 4, max_dd_pct: 5 },
-  ]},
-  { id: '9', name: 'TrueForexFunds', phases: [
-    { name: 'Phase 1', target_pct: 8, daily_dd_pct: 5, max_dd_pct: 10 },
-    { name: 'Phase 2', target_pct: 5, daily_dd_pct: 5, max_dd_pct: 10 },
-    { name: 'Funded', target_pct: 0, daily_dd_pct: 5, max_dd_pct: 10 },
-  ]},
-  { id: '10', name: 'City Traders Imperium', phases: [
-    { name: 'Phase 1', target_pct: 10, daily_dd_pct: 0, max_dd_pct: 10 },
-    { name: 'Phase 2', target_pct: 5, daily_dd_pct: 0, max_dd_pct: 10 },
-    { name: 'Funded', target_pct: 0, daily_dd_pct: 0, max_dd_pct: 10 },
-  ]},
-]
-
-function getPhaseRules(propFirm: string, phase: string) {
-  const firm = propFirmRules.find(f => f.name === propFirm)
-  if (!firm) return { daily_dd_pct: 5, max_dd_pct: 10 }
-  const phaseConfig = firm.phases.find(p => p.name === phase)
-  return phaseConfig ?? { daily_dd_pct: 5, max_dd_pct: 10 }
-}
-
 function guessProFirm(server: string): string {
   const match = serverMappings.find(m =>
     server.toLowerCase().includes(m.pattern.toLowerCase())
@@ -91,15 +32,16 @@ function guessProFirm(server: string): string {
 }
 
 function guessPlatform(account: MetaCopierAccount): string {
-  const p = String(account.platform ?? '').toLowerCase()
+  const p = (account.platform ?? '').toLowerCase()
   if (p.includes('mt5') || p.includes('metatrader 5')) return 'MT5'
   if (p.includes('mt4') || p.includes('metatrader 4')) return 'MT4'
   if (p.includes('ctrader')) return 'cTrader'
-  return String(account.platform || 'Unknown')
+  return account.platform || 'Unknown'
 }
 
 export function useChallenges() {
-  const { accounts } = useMetaCopier()
+  const { accounts, openPositionsMap, lastTradeMap, tradeCountMap } = useMetaCopier()
+  const startingBalances = ref<Record<string, number>>({})
 
   async function fetchChallenges() {
     loading.value = true
@@ -112,6 +54,8 @@ export function useChallenges() {
 
       if (err) throw err
       challenges.value = data ?? []
+      // Fetch starting balances from earliest snapshots
+      await fetchStartingBalances()
     } catch (e: any) {
       error.value = e.message
       console.error('Failed to fetch challenges:', e)
@@ -120,35 +64,35 @@ export function useChallenges() {
     }
   }
 
+  async function fetchStartingBalances() {
+    for (const ch of challenges.value) {
+      if (startingBalances.value[ch.id]) continue
+      try {
+        const { data } = await supabase
+          .from('snapshots')
+          .select('balance')
+          .eq('challenge_id', ch.id)
+          .order('timestamp', { ascending: true })
+          .limit(1)
+          .single()
+        if (data?.balance) {
+          startingBalances.value[ch.id] = data.balance
+        }
+      } catch {
+        // No snapshot yet, will use current balance
+      }
+    }
+  }
+
   const challengeRows = computed<ChallengeRow[]>(() => {
     return challenges.value.map(ch => {
       const acc = accounts.value.find(a => a.id === ch.metacopier_account_id)
-      const isMaster = Boolean((ch as any).is_master)
-      const rules = getPhaseRules(ch.prop_firm, ch.phase)
 
       const balance = acc?.balance ?? 0
       const equity = acc?.equity ?? 0
-      const starting = balance > 0 ? balance : 1
-      const pnl = equity - starting
-      const target = starting * (ch.target_pct / 100)
-      const progress = target > 0 ? Math.min((pnl / target) * 100, 100) : 0
-
-      // Current drawdown: how far equity is below starting balance
-      const currentDd = starting > 0 ? Math.max(((starting - equity) / starting) * 100, 0) : 0
-
-      // Challenge status (master accounts are always "Active")
-      let challengeStatus: 'Active' | 'Passed' | 'Failed' = 'Active'
-      if (!isMaster) {
-        if (currentDd >= rules.max_dd_pct && rules.max_dd_pct > 0) {
-          challengeStatus = 'Failed'
-        } else if (progress >= 100 && ch.target_pct > 0) {
-          challengeStatus = 'Passed'
-        }
-      }
-
-      // Ignore stored "[object Object]" platform — re-derive from live account data
-      const storedPlatform = ch.platform && !ch.platform.includes('[object') ? ch.platform : null
-      const livePlatform = acc ? acc.platform : 'Unknown'
+      const starting = startingBalances.value[ch.id] ?? balance
+      const safeDivisor = starting > 0 ? starting : 1
+      const profitPct = ((equity - safeDivisor) / safeDivisor) * 100
 
       return {
         id: ch.id,
@@ -157,22 +101,18 @@ export function useChallenges() {
         owner: ch.owner,
         prop_firm: ch.prop_firm,
         phase: ch.phase,
-        platform: storedPlatform || livePlatform,
+        platform: ch.platform || (acc ? guessPlatform(acc) : 'Unknown'),
         balance,
         equity,
-        starting_balance: starting,
+        starting_balance: safeDivisor,
         target_pct: ch.target_pct,
-        progress: Math.round(progress * 10) / 10,
-        pnl: Math.round(pnl * 100) / 100,
-        daily_dd_pct: rules.daily_dd_pct,
-        max_dd_pct: rules.max_dd_pct,
-        current_dd: Math.round(currentDd * 100) / 100,
+        progress: Math.round(profitPct * 10) / 10,
+        open_pnl: openPositionsMap.value[ch.metacopier_account_id]?.pnl ?? 0,
+        open_positions: openPositionsMap.value[ch.metacopier_account_id]?.positions ?? [],
+        is_master: acc?.is_master ?? false,
         state: acc?.connected ? 'Connected' : 'Disconnected',
-        challenge_status: challengeStatus,
-        is_master: isMaster,
-        cost: Number((ch as any).cost ?? 0),
-        trades_count: acc?.trades_count ?? 0,
-        last_trade: null,
+        trades_count: tradeCountMap.value[ch.metacopier_account_id] ?? acc?.trades_count ?? 0,
+        last_trade: lastTradeMap.value[ch.metacopier_account_id] || null,
         login_number: ch.login_number,
         login_server: ch.login_server,
       }

@@ -151,22 +151,20 @@ const owners = computed(() => {
   box-shadow: 0 2px 12px var(--accent-muted);
 }
 
-/* ─── Mobile ─── */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .filter-bar {
     flex-direction: column;
+    align-items: stretch;
     gap: 10px;
-    padding: 8px 0 12px;
   }
 
   .filters {
     flex-direction: column;
     gap: 8px;
-    width: 100%;
   }
 
   .input-wrap {
-    max-width: 100%;
+    max-width: none;
   }
 
   .filter-select {
@@ -175,9 +173,8 @@ const owners = computed(() => {
   }
 
   .btn-add {
-    width: 100%;
     justify-content: center;
-    padding: 10px;
+    padding: 10px 18px;
   }
 }
 </style>

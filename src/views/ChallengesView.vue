@@ -162,9 +162,9 @@ onUnmounted(() => {
   color: var(--red);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .challenges-view {
-    padding: 16px;
+    padding: 16px 12px;
   }
 
   .page-title-row h1 {

@@ -21,8 +21,6 @@ const propFirm = ref('')
 const phase = ref<'Phase 1' | 'Phase 2' | 'Funded'>('Phase 1')
 const targetPct = ref(8)
 const owner = ref('')
-const isMaster = ref(false)
-const cost = ref(0)
 const saving = ref(false)
 const errorMsg = ref('')
 
@@ -90,7 +88,7 @@ watch([propFirm, phase], () => {
 
 async function handleSubmit() {
   if (!selectedAccountId.value) { errorMsg.value = 'Select an account'; return }
-  if (!isMaster.value && !propFirm.value) { errorMsg.value = 'Select a prop firm'; return }
+  if (!propFirm.value) { errorMsg.value = 'Select a prop firm'; return }
   const acc = selectedAccount.value!
   saving.value = true
   errorMsg.value = ''
@@ -98,15 +96,13 @@ async function handleSubmit() {
     await addChallenge({
       metacopier_account_id: acc.id,
       alias: alias.value,
-      prop_firm: isMaster.value ? 'Master' : propFirm.value,
-      phase: isMaster.value ? 'Funded' : phase.value,
+      prop_firm: propFirm.value,
+      phase: phase.value,
       platform: guessPlatform(acc),
-      target_pct: isMaster.value ? 0 : targetPct.value,
+      target_pct: targetPct.value,
       owner: owner.value,
       login_number: acc.login,
       login_server: acc.server,
-      is_master: isMaster.value,
-      cost: cost.value,
     })
     emit('added')
     emit('close')
@@ -125,8 +121,6 @@ function resetForm() {
   phase.value = 'Phase 1'
   targetPct.value = 8
   owner.value = ''
-  isMaster.value = false
-  cost.value = 0
   errorMsg.value = ''
 }
 </script>
@@ -167,54 +161,39 @@ function resetForm() {
               </p>
             </div>
 
+            <div class="form-group">
+              <label>Alias</label>
+              <input v-model="alias" type="text" class="form-input" placeholder="e.g. FTMO 100k #1" />
+            </div>
+
             <div class="form-row">
               <div class="form-group">
-                <label>Alias</label>
-                <input v-model="alias" type="text" class="form-input" placeholder="e.g. FTMO 100k #1" />
+                <label>Prop Firm</label>
+                <select v-model="propFirm" class="form-input">
+                  <option value="" disabled>Select...</option>
+                  <option v-for="f in propFirms" :key="f.id" :value="f.name">{{ f.name }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Phase</label>
+                <select v-model="phase" class="form-input">
+                  <option value="Phase 1">Phase 1</option>
+                  <option value="Phase 2">Phase 2</option>
+                  <option value="Funded">Funded</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Target %</label>
+                <input v-model.number="targetPct" type="number" step="0.5" min="0" class="form-input" />
               </div>
               <div class="form-group">
                 <label>Owner</label>
                 <input v-model="owner" type="text" class="form-input" placeholder="Trader name" />
               </div>
             </div>
-
-            <label class="toggle-row">
-              <input type="checkbox" v-model="isMaster" class="toggle-input" />
-              <span class="toggle-switch" />
-              <span class="toggle-label">Master Account</span>
-              <span class="toggle-hint">Demo / copier source — excluded from analytics</span>
-            </label>
-
-            <template v-if="!isMaster">
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Prop Firm</label>
-                  <select v-model="propFirm" class="form-input">
-                    <option value="" disabled>Select...</option>
-                    <option v-for="f in propFirms" :key="f.id" :value="f.name">{{ f.name }}</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>Phase</label>
-                  <select v-model="phase" class="form-input">
-                    <option value="Phase 1">Phase 1</option>
-                    <option value="Phase 2">Phase 2</option>
-                    <option value="Funded">Funded</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Target %</label>
-                  <input v-model.number="targetPct" type="number" step="0.5" min="0" class="form-input" />
-                </div>
-                <div class="form-group">
-                  <label>Cost ($)</label>
-                  <input v-model.number="cost" type="number" step="1" min="0" class="form-input" placeholder="0" />
-                </div>
-              </div>
-            </template>
 
             <div class="modal-footer">
               <button type="button" class="btn-secondary" @click="emit('close')">Cancel</button>
@@ -375,75 +354,6 @@ function resetForm() {
   gap: 12px;
 }
 
-/* ─── Master toggle ─── */
-.toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: var(--bg);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: border-color 0.15s;
-  flex-wrap: wrap;
-}
-
-.toggle-row:hover {
-  border-color: var(--border);
-}
-
-.toggle-input {
-  display: none;
-}
-
-.toggle-switch {
-  position: relative;
-  width: 34px;
-  height: 18px;
-  background: var(--border);
-  border-radius: 9px;
-  transition: background 0.2s;
-  flex-shrink: 0;
-}
-
-.toggle-switch::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  background: var(--text-tertiary);
-  border-radius: 50%;
-  transition: transform 0.2s, background 0.2s;
-}
-
-.toggle-input:checked + .toggle-switch {
-  background: var(--orange-muted);
-}
-
-.toggle-input:checked + .toggle-switch::after {
-  transform: translateX(16px);
-  background: var(--orange);
-}
-
-.toggle-label {
-  font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.toggle-hint {
-  font-family: var(--font-ui);
-  font-size: 11px;
-  color: var(--text-tertiary);
-  width: 100%;
-  padding-left: 44px;
-  margin-top: -4px;
-}
-
 /* ─── Footer ─── */
 .modal-footer {
   display: flex;
@@ -492,32 +402,40 @@ function resetForm() {
   cursor: not-allowed;
 }
 
-/* ─── Mobile ─── */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .modal {
     width: 100%;
-    max-width: 100%;
-    max-height: 100%;
-    height: 100%;
+    max-width: 100vw;
+    max-height: 100vh;
     border-radius: 0;
-    border: none;
+    height: 100vh;
   }
 
   .modal-accent {
     border-radius: 0;
   }
 
+  .form-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+
   .modal-body {
     padding: 16px;
   }
 
-  .form-row {
-    flex-direction: column;
-    gap: 14px;
-  }
-
   .modal-header {
     padding: 14px 16px;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+  }
+
+  .modal-footer button {
+    width: 100%;
+    justify-content: center;
+    padding: 12px;
   }
 }
 </style>

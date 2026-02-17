@@ -7,26 +7,21 @@ const props = defineProps<{
 }>()
 
 const stats = computed(() => {
-  const rows = props.rows
-  // Exclude master accounts from analytics
-  const tracked = rows.filter(r => !r.is_master)
-  const running = tracked.filter(r => r.state === 'Connected').length
-  const totalBalance = tracked.reduce((sum, r) => sum + r.balance, 0)
-  // P&L only from funded accounts
-  const fundedPnl = tracked.filter(r => r.phase === 'Funded').reduce((sum, r) => sum + r.pnl, 0)
-  const pnlSign = fundedPnl >= 0 ? '+' : ''
-  const pnlColor = fundedPnl >= 0 ? 'var(--green)' : 'var(--red)'
-  const passed = tracked.filter(r => r.challenge_status === 'Passed').length
-  const failed = tracked.filter(r => r.challenge_status === 'Failed').length
-  const totalCost = tracked.reduce((sum, r) => sum + r.cost, 0)
+  const allRows = props.rows
+  const rows = allRows.filter(r => !r.is_master)
+  const platforms = new Set(rows.map(r => r.platform))
+  const phases = new Set(rows.map(r => r.phase))
+  const running = rows.filter(r => r.state === 'Connected').length
+  const totalBalance = rows.reduce((sum, r) => sum + r.balance, 0)
+  const totalEquity = rows.reduce((sum, r) => sum + r.equity, 0)
 
   return [
-    { label: 'Accounts', value: String(tracked.length), color: 'var(--accent)' },
+    { label: 'Accounts', value: String(rows.length), color: 'var(--accent)' },
     { label: 'Running', value: String(running), color: 'var(--green)' },
+    { label: 'Platforms', value: String(platforms.size), color: 'var(--purple)' },
+    { label: 'Phases', value: String(phases.size), color: 'var(--orange)' },
     { label: 'Total Balance', value: `$${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: 'var(--cyan)' },
-    { label: 'Funded P&L', value: `${pnlSign}$${Math.abs(fundedPnl).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: pnlColor },
-    { label: 'Total Cost', value: `$${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: 'var(--orange)' },
-    { label: 'Passed / Failed', value: `${passed} / ${failed}`, color: passed > 0 ? 'var(--green)' : 'var(--purple)' },
+    { label: 'Total Equity', value: `$${totalEquity.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: 'var(--green)' },
   ]
 })
 </script>
@@ -67,7 +62,7 @@ const stats = computed(() => {
   .stats-bar {
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
-    padding: 16px 0 8px;
+    padding: 12px 0 8px;
   }
 
   .stat-card {

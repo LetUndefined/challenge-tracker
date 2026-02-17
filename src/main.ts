@@ -1,5 +1,5 @@
 import { createApp } from 'vue'
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import './style.css'
 
@@ -9,7 +9,7 @@ import PropFirmsView from './views/PropFirmsView.vue'
 import OwnersView from './views/OwnersView.vue'
 
 const router = createRouter({
-  history: createWebHashHistory(),
+  history: createWebHistory(),
   routes: [
     { path: '/', component: ChallengesView },
     { path: '/notifications', component: NotificationsView },
