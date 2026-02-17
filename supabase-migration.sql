@@ -27,6 +27,7 @@ create table if not exists snapshots (
   timestamp timestamptz default now()
 );
 
+.
 -- Trades table: trade history per challenge
 create table if not exists trades (
   id uuid default gen_random_uuid() primary key,
