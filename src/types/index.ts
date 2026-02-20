@@ -5,12 +5,14 @@ export interface Challenge {
   metacopier_account_id: string
   alias: string
   prop_firm: string
-  phase: 'Phase 1' | 'Phase 2' | 'Funded'
+  phase: 'Phase 1' | 'Phase 2' | 'Funded' | 'Master'
   platform: string
   target_pct: number
   owner: string
   login_number: string
   login_server: string
+  starting_balance?: number
+  cost?: number
   created_at: string
 }
 
@@ -94,6 +96,8 @@ export interface ChallengeRow {
   last_trade: string | null
   login_number: string
   login_server: string
+  cost: number
+  created_at: string
 }
 
 // ── Prop firm config ──

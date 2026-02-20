@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { ChallengeRow } from '@/types'
+import { useChallenges } from '@/composables/useChallenges'
+import ProgressChart from './ProgressChart.vue'
 
 defineProps<{
   rows: ChallengeRow[]
@@ -8,6 +11,25 @@ defineProps<{
 const emit = defineEmits<{
   delete: [id: string]
 }>()
+
+const { fetchSnapshots } = useChallenges()
+
+const expandedId = ref<string | null>(null)
+const snapshotsCache = ref<Record<string, { timestamp: string; equity: number }[]>>({})
+const snapshotsLoading = ref<Record<string, boolean>>({})
+
+async function toggleRow(row: ChallengeRow) {
+  if (expandedId.value === row.id) {
+    expandedId.value = null
+    return
+  }
+  expandedId.value = row.id
+  if (snapshotsCache.value[row.id] === undefined) {
+    snapshotsLoading.value[row.id] = true
+    snapshotsCache.value[row.id] = await fetchSnapshots(row.id)
+    snapshotsLoading.value[row.id] = false
+  }
+}
 
 function formatCurrency(val: number): string {
   return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -82,88 +104,112 @@ function formatLastTrade(ts: string | null): string {
             </div>
           </td>
         </tr>
-        <tr v-for="(row, i) in rows" :key="row.id" :style="{ 'animation-delay': `${i * 30}ms` }">
-          <td>
-            <div class="account-cell">
-              <span class="account-alias">{{ row.alias }}</span>
-              <span class="account-login">{{ row.login_number }}</span>
-            </div>
-          </td>
-          <td class="text-secondary">{{ row.owner }}</td>
-          <td>
-            <span class="chip chip-firm">{{ row.prop_firm }}</span>
-          </td>
-          <td>
-            <span class="chip chip-phase">{{ row.phase }}</span>
-          </td>
-          <td class="text-secondary">{{ row.platform }}</td>
-          <td class="text-right mono">{{ formatCurrency(row.balance) }}</td>
-          <td class="text-right mono">{{ formatCurrency(row.equity) }}</td>
-          <td class="text-right mono" :class="pnlClass(row.open_pnl)">
-            <template v-if="row.open_positions.length > 0">
-              <div v-for="(pos, pi) in row.open_positions" :key="pi" :class="pnlClass(pos.profit)">
-                {{ formatPnl(pos.profit) }}
-              </div>
-            </template>
-            <span v-else class="text-ghost">---</span>
-          </td>
-          <td class="text-right mono">
-            <template v-if="row.open_positions.length > 0">
-              <div v-for="(pos, pi) in row.open_positions" :key="pi" class="tp-value">
-                {{ pos.tpPnl !== null ? formatPnl(pos.tpPnl) : '---' }}
-              </div>
-            </template>
-            <span v-else class="text-ghost">---</span>
-          </td>
-          <td class="text-right mono">
-            <template v-if="row.open_positions.length > 0">
-              <div v-for="(pos, pi) in row.open_positions" :key="pi" class="sl-value">
-                {{ pos.slPnl !== null ? formatPnl(pos.slPnl) : '---' }}
-              </div>
-            </template>
-            <span v-else class="text-ghost">---</span>
-          </td>
-          <td class="text-right mono text-secondary">{{ row.target_pct }}%</td>
-          <td>
-            <div class="progress-cell">
-              <div class="progress-bidir">
-                <div class="progress-half loss-half">
-                  <div
-                    v-if="row.progress < 0"
-                    class="progress-fill-loss"
-                    :style="{ width: `${Math.min(Math.abs(row.progress) / row.target_pct * 100, 100)}%` }"
-                  />
+        <template v-for="(row, i) in rows" :key="row.id">
+          <tr
+            :style="{ 'animation-delay': `${i * 30}ms` }"
+            :class="{ 'row-expanded': expandedId === row.id }"
+            class="data-row"
+          >
+            <td>
+              <div class="account-cell clickable" @click="toggleRow(row)" :title="expandedId === row.id ? 'Collapse chart' : 'Expand chart'">
+                <div class="account-name-row">
+                  <span class="account-alias">{{ row.alias }}</span>
+                  <svg
+                    class="chevron"
+                    :class="{ 'chevron-open': expandedId === row.id }"
+                    width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                  ><path d="M6 9l6 6 6-6"/></svg>
                 </div>
-                <div class="progress-center" />
-                <div class="progress-half profit-half">
-                  <div
-                    v-if="row.progress > 0"
-                    class="progress-fill-profit"
-                    :style="{ width: `${Math.min(row.progress / row.target_pct * 100, 100)}%` }"
-                  />
-                </div>
+                <span class="account-login">{{ row.login_number }}</span>
               </div>
-              <span class="progress-text" :style="{ color: row.progress >= 0 ? 'var(--green)' : 'var(--red)' }">
-                {{ row.progress }}%
-              </span>
-            </div>
-          </td>
-          <td>
-            <div class="state-cell" :class="stateClass(row.state)">
-              <span class="state-dot" />
-              <span>{{ row.state }}</span>
-            </div>
-          </td>
-          <td class="text-right mono">{{ row.trades_count }}</td>
-          <td class="text-ghost mono-sm">{{ formatLastTrade(row.last_trade) }}</td>
-          <td>
-            <button class="btn-delete" title="Remove" @click="emit('delete', row.id)">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6 6 18M6 6l12 12"/>
-              </svg>
-            </button>
-          </td>
-        </tr>
+            </td>
+            <td class="text-secondary">{{ row.owner }}</td>
+            <td>
+              <span class="chip chip-firm">{{ row.prop_firm }}</span>
+            </td>
+            <td>
+              <span class="chip" :class="row.phase === 'Master' ? 'chip-master' : 'chip-phase'">{{ row.phase }}</span>
+            </td>
+            <td class="text-secondary">{{ row.platform }}</td>
+            <td class="text-right mono">{{ formatCurrency(row.balance) }}</td>
+            <td class="text-right mono">{{ formatCurrency(row.equity) }}</td>
+            <td class="text-right mono" :class="pnlClass(row.open_pnl)">
+              <template v-if="row.open_positions.length > 0">
+                <div v-for="(pos, pi) in row.open_positions" :key="pi" :class="pnlClass(pos.profit)">
+                  {{ formatPnl(pos.profit) }}
+                </div>
+              </template>
+              <span v-else class="text-ghost">---</span>
+            </td>
+            <td class="text-right mono">
+              <template v-if="row.open_positions.length > 0">
+                <div v-for="(pos, pi) in row.open_positions" :key="pi" class="tp-value">
+                  {{ pos.tpPnl !== null ? formatPnl(pos.tpPnl) : '---' }}
+                </div>
+              </template>
+              <span v-else class="text-ghost">---</span>
+            </td>
+            <td class="text-right mono">
+              <template v-if="row.open_positions.length > 0">
+                <div v-for="(pos, pi) in row.open_positions" :key="pi" class="sl-value">
+                  {{ pos.slPnl !== null ? formatPnl(pos.slPnl) : '---' }}
+                </div>
+              </template>
+              <span v-else class="text-ghost">---</span>
+            </td>
+            <td class="text-right mono text-secondary">{{ row.target_pct > 0 ? `${row.target_pct}%` : '—' }}</td>
+            <td>
+              <div class="progress-cell">
+                <div class="progress-bidir">
+                  <div class="progress-half loss-half">
+                    <div
+                      v-if="row.progress < 0 && row.target_pct > 0"
+                      class="progress-fill-loss"
+                      :style="{ width: `${Math.min(Math.abs(row.progress) / row.target_pct * 100, 100)}%` }"
+                    />
+                  </div>
+                  <div class="progress-center" />
+                  <div class="progress-half profit-half">
+                    <div
+                      v-if="row.progress > 0 && row.target_pct > 0"
+                      class="progress-fill-profit"
+                      :style="{ width: `${Math.min(row.progress / row.target_pct * 100, 100)}%` }"
+                    />
+                  </div>
+                </div>
+                <span class="progress-text" :style="{ color: row.progress >= 0 ? 'var(--green)' : 'var(--red)' }">
+                  {{ row.progress }}%
+                </span>
+              </div>
+            </td>
+            <td>
+              <div class="state-cell" :class="stateClass(row.state)">
+                <span class="state-dot" />
+                <span>{{ row.state }}</span>
+              </div>
+            </td>
+            <td class="text-right mono">{{ row.trades_count }}</td>
+            <td class="text-ghost mono-sm">{{ formatLastTrade(row.last_trade) }}</td>
+            <td>
+              <button class="btn-delete" title="Remove" @click="emit('delete', row.id)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 6 6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </td>
+          </tr>
+          <!-- Expandable chart row -->
+          <tr v-if="expandedId === row.id" class="chart-row">
+            <td colspan="16" class="chart-td">
+              <ProgressChart
+                :snapshots="snapshotsCache[row.id] ?? []"
+                :starting-balance="row.starting_balance"
+                :created-at="row.created_at"
+                :loading="!!snapshotsLoading[row.id]"
+              />
+            </td>
+          </tr>
+        </template>
       </tbody>
     </table>
   </div>
@@ -183,12 +229,19 @@ function formatLastTrade(ts: string | null): string {
       class="challenge-card"
       :style="{ 'animation-delay': `${i * 30}ms` }"
     >
-      <div class="card-header">
+      <div class="card-header" @click="toggleRow(row)">
         <div class="card-account">
-          <span class="account-alias">{{ row.alias }}</span>
+          <div class="account-name-row">
+            <span class="account-alias">{{ row.alias }}</span>
+            <svg
+              class="chevron"
+              :class="{ 'chevron-open': expandedId === row.id }"
+              width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            ><path d="M6 9l6 6 6-6"/></svg>
+          </div>
           <span class="account-login">{{ row.login_number }}</span>
         </div>
-        <div class="card-header-right">
+        <div class="card-header-right" @click.stop>
           <div class="state-cell" :class="stateClass(row.state)">
             <span class="state-dot" />
             <span>{{ row.state }}</span>
@@ -203,7 +256,7 @@ function formatLastTrade(ts: string | null): string {
 
       <div class="card-chips">
         <span class="chip chip-firm">{{ row.prop_firm }}</span>
-        <span class="chip chip-phase">{{ row.phase }}</span>
+        <span class="chip" :class="row.phase === 'Master' ? 'chip-master' : 'chip-phase'">{{ row.phase }}</span>
         <span class="card-owner">{{ row.owner }}</span>
       </div>
 
@@ -229,7 +282,7 @@ function formatLastTrade(ts: string | null): string {
         </div>
         <div class="card-stat">
           <span class="card-label">Target</span>
-          <span class="card-value mono text-secondary">{{ row.target_pct }}%</span>
+          <span class="card-value mono text-secondary">{{ row.target_pct > 0 ? `${row.target_pct}%` : '—' }}</span>
         </div>
         <div class="card-stat">
           <span class="card-label">Trades</span>
@@ -253,7 +306,7 @@ function formatLastTrade(ts: string | null): string {
         <div class="progress-bidir">
           <div class="progress-half loss-half">
             <div
-              v-if="row.progress < 0"
+              v-if="row.progress < 0 && row.target_pct > 0"
               class="progress-fill-loss"
               :style="{ width: `${Math.min(Math.abs(row.progress) / row.target_pct * 100, 100)}%` }"
             />
@@ -261,7 +314,7 @@ function formatLastTrade(ts: string | null): string {
           <div class="progress-center" />
           <div class="progress-half profit-half">
             <div
-              v-if="row.progress > 0"
+              v-if="row.progress > 0 && row.target_pct > 0"
               class="progress-fill-profit"
               :style="{ width: `${Math.min(row.progress / row.target_pct * 100, 100)}%` }"
             />
@@ -270,6 +323,16 @@ function formatLastTrade(ts: string | null): string {
         <span class="progress-text" :style="{ color: row.progress >= 0 ? 'var(--green)' : 'var(--red)' }">
           {{ row.progress }}%
         </span>
+      </div>
+
+      <!-- Mobile chart dropdown -->
+      <div v-if="expandedId === row.id" class="card-chart">
+        <ProgressChart
+          :snapshots="snapshotsCache[row.id] ?? []"
+          :starting-balance="row.starting_balance"
+          :created-at="row.created_at"
+          :loading="!!snapshotsLoading[row.id]"
+        />
       </div>
     </div>
   </div>
@@ -532,6 +595,57 @@ function formatLastTrade(ts: string | null): string {
   font-size: 13px;
 }
 
+/* ─── Master chip ─── */
+.chip-master {
+  background: rgba(24, 220, 255, 0.08);
+  color: var(--cyan);
+  border: 1px solid rgba(24, 220, 255, 0.14);
+}
+
+/* ─── Expand toggle ─── */
+.account-name-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover .account-alias {
+  color: var(--accent);
+}
+
+.chevron {
+  color: var(--text-tertiary);
+  transition: transform 0.2s var(--ease-out), color 0.15s;
+  flex-shrink: 0;
+}
+
+.chevron-open {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+/* ─── Expanded chart row ─── */
+.row-expanded td {
+  background: var(--surface);
+  border-bottom: none !important;
+}
+
+.chart-row td {
+  padding: 0 !important;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.chart-td {
+  background: rgba(6, 6, 11, 0.6);
+  border-left: 2px solid var(--accent);
+  border-left-color: var(--accent);
+  animation: slideDown 0.25s var(--ease-out);
+}
+
 /* ─── Delete button ─── */
 .btn-delete {
   width: 26px;
@@ -596,6 +710,7 @@ function formatLastTrade(ts: string | null): string {
     align-items: flex-start;
     justify-content: space-between;
     margin-bottom: 10px;
+    cursor: pointer;
   }
 
   .card-account {
@@ -687,6 +802,15 @@ function formatLastTrade(ts: string | null): string {
 
   .card-progress .progress-bidir {
     flex: 1;
+  }
+
+  .card-chart {
+    margin-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+    border-left: 2px solid var(--accent);
+    margin-left: -14px;
+    padding-left: 0;
+    animation: slideDown 0.25s var(--ease-out);
   }
 }
 </style>

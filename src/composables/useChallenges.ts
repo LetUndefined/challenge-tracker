@@ -90,9 +90,11 @@ export function useChallenges() {
 
       const balance = acc?.balance ?? 0
       const equity = acc?.equity ?? 0
-      const starting = startingBalances.value[ch.id] ?? balance
+      // Priority: explicit starting_balance from DB > earliest snapshot > current balance
+      const starting = ch.starting_balance ?? startingBalances.value[ch.id] ?? balance
       const safeDivisor = starting > 0 ? starting : 1
       const profitPct = ((equity - safeDivisor) / safeDivisor) * 100
+      const isMaster = ch.phase === 'Master'
 
       return {
         id: ch.id,
@@ -109,12 +111,14 @@ export function useChallenges() {
         progress: Math.round(profitPct * 10) / 10,
         open_pnl: openPositionsMap.value[ch.metacopier_account_id]?.pnl ?? 0,
         open_positions: openPositionsMap.value[ch.metacopier_account_id]?.positions ?? [],
-        is_master: acc?.is_master ?? false,
+        is_master: isMaster,
         state: acc?.connected ? 'Connected' : 'Disconnected',
         trades_count: tradeCountMap.value[ch.metacopier_account_id] ?? acc?.trades_count ?? 0,
         last_trade: lastTradeMap.value[ch.metacopier_account_id] || null,
         login_number: ch.login_number,
         login_server: ch.login_server,
+        cost: ch.cost ?? 0,
+        created_at: ch.created_at,
       }
     })
   })
@@ -167,6 +171,15 @@ export function useChallenges() {
     }
   }
 
+  async function fetchSnapshots(challengeId: string): Promise<{ timestamp: string; equity: number }[]> {
+    const { data } = await supabase
+      .from('snapshots')
+      .select('timestamp, equity')
+      .eq('challenge_id', challengeId)
+      .order('timestamp', { ascending: true })
+    return data ?? []
+  }
+
   return {
     challenges,
     challengeRows,
@@ -177,6 +190,7 @@ export function useChallenges() {
     addChallenge,
     deleteChallenge,
     captureSnapshots,
+    fetchSnapshots,
     guessProFirm,
     guessPlatform,
   }

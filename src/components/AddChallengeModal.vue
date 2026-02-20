@@ -18,9 +18,11 @@ const { addChallenge, guessProFirm, guessPlatform } = useChallenges()
 const selectedAccountId = ref('')
 const alias = ref('')
 const propFirm = ref('')
-const phase = ref<'Phase 1' | 'Phase 2' | 'Funded'>('Phase 1')
+const phase = ref<'Phase 1' | 'Phase 2' | 'Funded' | 'Master'>('Phase 1')
 const targetPct = ref(8)
 const owner = ref('')
+const startingBalance = ref(0)
+const cost = ref<number | ''>('')
 const saving = ref(false)
 const errorMsg = ref('')
 
@@ -69,6 +71,7 @@ watch(selectedAccountId, (id) => {
   const acc = props.unlinkedAccounts.find(a => a.id === id)
   if (!acc) return
   alias.value = acc.name || acc.login
+  startingBalance.value = acc.balance ?? 0
   const guessed = guessProFirm(acc.server)
   if (guessed !== 'Unknown') propFirm.value = guessed
   const firm = propFirms.find(f => f.name === propFirm.value)
@@ -79,6 +82,10 @@ watch(selectedAccountId, (id) => {
 })
 
 watch([propFirm, phase], () => {
+  if (phase.value === 'Master') {
+    targetPct.value = 0
+    return
+  }
   const firm = propFirms.find(f => f.name === propFirm.value)
   if (firm) {
     const phaseConfig = firm.phases.find(p => p.name === phase.value)
@@ -88,7 +95,7 @@ watch([propFirm, phase], () => {
 
 async function handleSubmit() {
   if (!selectedAccountId.value) { errorMsg.value = 'Select an account'; return }
-  if (!propFirm.value) { errorMsg.value = 'Select a prop firm'; return }
+  if (!propFirm.value && phase.value !== 'Master') { errorMsg.value = 'Select a prop firm'; return }
   const acc = selectedAccount.value!
   saving.value = true
   errorMsg.value = ''
@@ -96,13 +103,15 @@ async function handleSubmit() {
     await addChallenge({
       metacopier_account_id: acc.id,
       alias: alias.value,
-      prop_firm: propFirm.value,
+      prop_firm: propFirm.value || 'Master',
       phase: phase.value,
       platform: guessPlatform(acc),
       target_pct: targetPct.value,
       owner: owner.value,
       login_number: acc.login,
       login_server: acc.server,
+      starting_balance: startingBalance.value > 0 ? startingBalance.value : undefined,
+      cost: cost.value !== '' ? Number(cost.value) : undefined,
     })
     emit('added')
     emit('close')
@@ -121,6 +130,8 @@ function resetForm() {
   phase.value = 'Phase 1'
   targetPct.value = 8
   owner.value = ''
+  startingBalance.value = 0
+  cost.value = ''
   errorMsg.value = ''
 }
 </script>
@@ -168,23 +179,35 @@ function resetForm() {
 
             <div class="form-row">
               <div class="form-group">
+                <label>Phase / Type</label>
+                <select v-model="phase" class="form-input">
+                  <option value="Phase 1">Phase 1</option>
+                  <option value="Phase 2">Phase 2</option>
+                  <option value="Funded">Funded</option>
+                  <option value="Master">Master</option>
+                </select>
+              </div>
+              <div class="form-group" v-if="phase !== 'Master'">
                 <label>Prop Firm</label>
                 <select v-model="propFirm" class="form-input">
                   <option value="" disabled>Select...</option>
                   <option v-for="f in propFirms" :key="f.id" :value="f.name">{{ f.name }}</option>
                 </select>
               </div>
-              <div class="form-group">
-                <label>Phase</label>
-                <select v-model="phase" class="form-input">
-                  <option value="Phase 1">Phase 1</option>
-                  <option value="Phase 2">Phase 2</option>
-                  <option value="Funded">Funded</option>
-                </select>
-              </div>
             </div>
 
             <div class="form-row">
+              <div class="form-group">
+                <label>Starting Balance ($)</label>
+                <input v-model.number="startingBalance" type="number" step="0.01" min="0" class="form-input" placeholder="e.g. 10000" />
+              </div>
+              <div class="form-group">
+                <label>Account Cost ($)</label>
+                <input v-model="cost" type="number" step="0.01" min="0" class="form-input" placeholder="e.g. 549" />
+              </div>
+            </div>
+
+            <div class="form-row" v-if="phase !== 'Master'">
               <div class="form-group">
                 <label>Target %</label>
                 <input v-model.number="targetPct" type="number" step="0.5" min="0" class="form-input" />
@@ -193,6 +216,11 @@ function resetForm() {
                 <label>Owner</label>
                 <input v-model="owner" type="text" class="form-input" placeholder="Trader name" />
               </div>
+            </div>
+
+            <div class="form-group" v-if="phase === 'Master'">
+              <label>Owner</label>
+              <input v-model="owner" type="text" class="form-input" placeholder="Trader name" />
             </div>
 
             <div class="modal-footer">

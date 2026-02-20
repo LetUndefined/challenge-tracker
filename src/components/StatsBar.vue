@@ -10,18 +10,18 @@ const stats = computed(() => {
   const allRows = props.rows
   const rows = allRows.filter(r => !r.is_master)
   const platforms = new Set(rows.map(r => r.platform))
-  const phases = new Set(rows.map(r => r.phase))
   const running = rows.filter(r => r.state === 'Connected').length
   const totalBalance = rows.reduce((sum, r) => sum + r.balance, 0)
   const totalEquity = rows.reduce((sum, r) => sum + r.equity, 0)
+  const totalCost = rows.reduce((sum, r) => sum + (r.cost ?? 0), 0)
 
   return [
     { label: 'Accounts', value: String(rows.length), color: 'var(--accent)' },
     { label: 'Running', value: String(running), color: 'var(--green)' },
     { label: 'Platforms', value: String(platforms.size), color: 'var(--purple)' },
-    { label: 'Phases', value: String(phases.size), color: 'var(--orange)' },
     { label: 'Total Balance', value: `$${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: 'var(--cyan)' },
     { label: 'Total Equity', value: `$${totalEquity.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: 'var(--green)' },
+    { label: 'Total Cost', value: totalCost > 0 ? `$${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—', color: 'var(--orange)' },
   ]
 })
 </script>
