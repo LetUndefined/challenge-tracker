@@ -120,6 +120,17 @@ export interface PropFirmConfig {
   }[]
 }
 
+export interface Payout {
+  id: string
+  challenge_id: string
+  amount: number
+  status: 'pending' | 'received' | 'rejected'
+  requested_at: string
+  received_at: string | null
+  notes: string | null
+  created_at: string
+}
+
 export interface Owner {
   id: string
   name: string

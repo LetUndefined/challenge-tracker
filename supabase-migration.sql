@@ -51,16 +51,31 @@ alter table challenges add column if not exists daily_dd_pct numeric;
 alter table challenges add column if not exists max_dd_pct numeric;
 alter table challenges add column if not exists started_at timestamptz;
 
+-- Payouts table: track payout requests per challenge
+create table if not exists payouts (
+  id uuid default gen_random_uuid() primary key,
+  challenge_id uuid references challenges(id) on delete cascade not null,
+  amount numeric not null default 0,
+  status text not null default 'pending' check (status in ('pending', 'received', 'rejected')),
+  requested_at date not null default current_date,
+  received_at date,
+  notes text,
+  created_at timestamptz default now()
+);
+
 -- Indexes for performance
 create index if not exists idx_snapshots_challenge on snapshots(challenge_id, timestamp desc);
 create index if not exists idx_trades_challenge on trades(challenge_id, close_time desc);
+create index if not exists idx_payouts_challenge on payouts(challenge_id);
 
 -- Enable Row Level Security (open access — single user, no auth)
 alter table challenges enable row level security;
 alter table snapshots enable row level security;
 alter table trades enable row level security;
+alter table payouts enable row level security;
 
 -- Allow all operations (no auth needed)
 create policy "Allow all on challenges" on challenges for all using (true) with check (true);
 create policy "Allow all on snapshots" on snapshots for all using (true) with check (true);
 create policy "Allow all on trades" on trades for all using (true) with check (true);
+create policy "Allow all on payouts" on payouts for all using (true) with check (true);

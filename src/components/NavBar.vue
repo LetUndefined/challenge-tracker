@@ -11,6 +11,7 @@ const navItems = [
   { path: '/', label: 'Challenges' },
   { path: '/notifications', label: 'Notifications' },
   { path: '/analytics', label: 'Analytics' },
+  { path: '/payouts', label: 'Payouts' },
   { path: '/prop-firms', label: 'Prop Firms' },
   { path: '/owners', label: 'Owners' },
 ]
