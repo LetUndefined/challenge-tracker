@@ -14,12 +14,12 @@ const props = defineProps<{
 }>()
 
 // SVG layout constants
-const W = 600
-const H = 200
-const PAD_L = 72
-const PAD_R = 14
-const PAD_T = 14
-const PAD_B = 36
+const W = 700
+const H = 300
+const PAD_L = 86
+const PAD_R = 20
+const PAD_T = 20
+const PAD_B = 44
 const CW = W - PAD_L - PAD_R   // chart width
 const CH = H - PAD_T - PAD_B   // chart height
 
@@ -90,163 +90,259 @@ const isProfit = computed(() => currentEquity.value >= props.startingBalance)
 const lineColor = computed(() => isProfit.value ? 'var(--green)' : 'var(--red)')
 const areaId = computed(() => `area-grad-${Math.random().toString(36).slice(2, 7)}`)
 
-// Y axis labels (5 evenly spaced)
+// Y axis labels (6 evenly spaced)
 const yLabels = computed(() => {
   const labels: { y: number; value: number }[] = []
-  const step = (maxE.value - minE.value) / 4
-  for (let i = 0; i <= 4; i++) {
+  const step = (maxE.value - minE.value) / 5
+  for (let i = 0; i <= 5; i++) {
     const val = maxE.value - step * i
     labels.push({ y: mapY(val), value: val })
   }
   return labels
 })
 
-// X axis labels (up to 5 evenly spaced)
+// X axis labels (up to 6 evenly spaced), with hour resolution for short ranges
 const xLabels = computed(() => {
   if (!hasData.value) return []
   const labels: { x: number; label: string }[] = []
-  const count = Math.min(5, chartData.value.length)
+  const spanMs = maxT.value - minT.value
+  const useHours = spanMs < 3 * 24 * 60 * 60 * 1000
+  const count = Math.min(6, chartData.value.length)
   for (let i = 0; i < count; i++) {
-    const idx = Math.round((i / (count - 1)) * (chartData.value.length - 1))
+    const idx = Math.round((i / Math.max(count - 1, 1)) * (chartData.value.length - 1))
     const p = chartData.value[idx]
     const d = new Date(p.t)
-    const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const label = useHours
+      ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+      : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     labels.push({ x: mapX(p.t), label })
   }
   return labels
 })
 
+// Header stats
+const profitDollar = computed(() => currentEquity.value - props.startingBalance)
+const profitPct = computed(() =>
+  props.startingBalance > 0
+    ? ((currentEquity.value - props.startingBalance) / props.startingBalance) * 100
+    : 0
+)
+
 // Starting balance reference line
 const startLineY = computed(() => mapY(props.startingBalance))
 
 function formatCurrency(v: number): string {
-  if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(1)}k`
-  return `$${v.toFixed(0)}`
+  if (Math.abs(v) >= 100_000) return `$${(v / 1000).toFixed(0)}k`
+  if (Math.abs(v) >= 10_000) return `$${(v / 1000).toFixed(1)}k`
+  if (Math.abs(v) >= 1_000) return `$${(v / 1000).toFixed(2)}k`
+  return `$${v.toFixed(2)}`
 }
 </script>
 
 <template>
   <div class="chart-container">
+
+    <!-- Loading -->
     <div v-if="loading" class="chart-state">
       <div class="chart-spinner" />
       <span>Loading chart data...</span>
     </div>
+
+    <!-- No data -->
     <div v-else-if="!hasData" class="chart-state">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
       </svg>
       <span>No chart data yet — snapshots are captured every 5 minutes once connected.</span>
     </div>
-    <svg
-      v-else
-      :viewBox="`0 0 ${W} ${H}`"
-      class="equity-svg"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <defs>
-        <linearGradient :id="areaId" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" :stop-color="isProfit ? '#00d4aa' : '#ff4757'" stop-opacity="0.18"/>
-          <stop offset="100%" :stop-color="isProfit ? '#00d4aa' : '#ff4757'" stop-opacity="0.01"/>
-        </linearGradient>
-      </defs>
 
-      <!-- Subtle grid lines -->
-      <g class="grid">
+    <!-- Chart -->
+    <template v-else>
+      <!-- Stats header -->
+      <div class="chart-stats">
+        <div class="cs-item">
+          <span class="cs-label">Start</span>
+          <span class="cs-value">{{ formatCurrency(startingBalance) }}</span>
+        </div>
+        <div class="cs-item">
+          <span class="cs-label">Current</span>
+          <span class="cs-value">{{ formatCurrency(currentEquity) }}</span>
+        </div>
+        <div class="cs-item">
+          <span class="cs-label">P&amp;L</span>
+          <span class="cs-value" :style="{ color: isProfit ? 'var(--green)' : 'var(--red)' }">
+            {{ profitDollar >= 0 ? '+' : '' }}{{ formatCurrency(profitDollar) }}
+          </span>
+        </div>
+        <div class="cs-item">
+          <span class="cs-label">Return</span>
+          <span class="cs-value" :style="{ color: isProfit ? 'var(--green)' : 'var(--red)' }">
+            {{ profitPct >= 0 ? '+' : '' }}{{ profitPct.toFixed(2) }}%
+          </span>
+        </div>
+        <div class="cs-item">
+          <span class="cs-label">Points</span>
+          <span class="cs-value cs-dim">{{ chartData.length }}</span>
+        </div>
+      </div>
+
+      <!-- SVG chart -->
+      <svg
+        :viewBox="`0 0 ${W} ${H}`"
+        class="equity-svg"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <defs>
+          <linearGradient :id="areaId" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" :stop-color="isProfit ? '#00d4aa' : '#ff4757'" stop-opacity="0.22"/>
+            <stop offset="100%" :stop-color="isProfit ? '#00d4aa' : '#ff4757'" stop-opacity="0.01"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Grid lines -->
+        <g>
+          <line
+            v-for="lbl in yLabels"
+            :key="lbl.value"
+            :x1="PAD_L" :y1="lbl.y.toFixed(1)"
+            :x2="W - PAD_R" :y2="lbl.y.toFixed(1)"
+            stroke="rgba(255,255,255,0.05)" stroke-width="1"
+          />
+        </g>
+
+        <!-- Starting balance reference line -->
         <line
-          v-for="lbl in yLabels"
-          :key="lbl.value"
-          :x1="PAD_L" :y1="lbl.y.toFixed(1)"
-          :x2="W - PAD_R" :y2="lbl.y.toFixed(1)"
-          stroke="rgba(255,255,255,0.04)" stroke-width="1"
+          :x1="PAD_L" :y1="startLineY.toFixed(1)"
+          :x2="W - PAD_R" :y2="startLineY.toFixed(1)"
+          stroke="#f0b429" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.55"
         />
-      </g>
 
-      <!-- Starting balance reference line -->
-      <line
-        :x1="PAD_L" :y1="startLineY.toFixed(1)"
-        :x2="W - PAD_R" :y2="startLineY.toFixed(1)"
-        stroke="#f0b429" stroke-width="1" stroke-dasharray="5 4" opacity="0.5"
-      />
+        <!-- Area fill -->
+        <path :d="areaPath" :fill="`url(#${areaId})`" />
 
-      <!-- Area fill -->
-      <path :d="areaPath" :fill="`url(#${areaId})`" />
+        <!-- Equity line -->
+        <path :d="linePath" fill="none" :stroke="lineColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
 
-      <!-- Equity line -->
-      <path :d="linePath" fill="none" :stroke="lineColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <!-- First point dot -->
+        <circle
+          :cx="mapX(chartData[0].t).toFixed(1)"
+          :cy="mapY(chartData[0].equity).toFixed(1)"
+          r="4" :fill="lineColor" opacity="0.6"
+        />
 
-      <!-- First point dot -->
-      <circle
-        :cx="mapX(chartData[0].t).toFixed(1)"
-        :cy="mapY(chartData[0].equity).toFixed(1)"
-        r="3" :fill="lineColor" opacity="0.7"
-      />
+        <!-- Last point dot + glow ring -->
+        <circle
+          :cx="mapX(chartData[chartData.length - 1].t).toFixed(1)"
+          :cy="mapY(chartData[chartData.length - 1].equity).toFixed(1)"
+          r="7" :fill="lineColor" opacity="0.12"
+        />
+        <circle
+          :cx="mapX(chartData[chartData.length - 1].t).toFixed(1)"
+          :cy="mapY(chartData[chartData.length - 1].equity).toFixed(1)"
+          r="4" :fill="lineColor"
+        />
 
-      <!-- Last point dot -->
-      <circle
-        :cx="mapX(chartData[chartData.length - 1].t).toFixed(1)"
-        :cy="mapY(chartData[chartData.length - 1].equity).toFixed(1)"
-        r="3.5" :fill="lineColor"
-      />
+        <!-- Y axis labels -->
+        <g>
+          <text
+            v-for="lbl in yLabels"
+            :key="lbl.value"
+            :x="PAD_L - 8"
+            :y="(lbl.y + 4).toFixed(1)"
+            text-anchor="end"
+            font-family="'JetBrains Mono', monospace"
+            font-size="11"
+            fill="rgba(255,255,255,0.4)"
+          >{{ formatCurrency(lbl.value) }}</text>
+        </g>
 
-      <!-- Y axis labels -->
-      <g class="y-labels">
+        <!-- X axis labels -->
+        <g>
+          <text
+            v-for="lbl in xLabels"
+            :key="lbl.x"
+            :x="lbl.x.toFixed(1)"
+            :y="H - 12"
+            text-anchor="middle"
+            font-family="'JetBrains Mono', monospace"
+            font-size="11"
+            fill="rgba(255,255,255,0.35)"
+          >{{ lbl.label }}</text>
+        </g>
+
+        <!-- Starting balance label -->
         <text
-          v-for="lbl in yLabels"
-          :key="lbl.value"
-          :x="PAD_L - 6"
-          :y="(lbl.y + 3.5).toFixed(1)"
+          :x="W - PAD_R - 4"
+          :y="(startLineY - 6).toFixed(1)"
           text-anchor="end"
           font-family="'JetBrains Mono', monospace"
-          font-size="9"
-          fill="rgba(255,255,255,0.35)"
-        >{{ formatCurrency(lbl.value) }}</text>
-      </g>
-
-      <!-- X axis labels -->
-      <g class="x-labels">
-        <text
-          v-for="lbl in xLabels"
-          :key="lbl.x"
-          :x="lbl.x.toFixed(1)"
-          :y="H - 10"
-          text-anchor="middle"
-          font-family="'JetBrains Mono', monospace"
-          font-size="9"
-          fill="rgba(255,255,255,0.3)"
-        >{{ lbl.label }}</text>
-      </g>
-
-      <!-- Starting balance label -->
-      <text
-        :x="W - PAD_R - 2"
-        :y="(startLineY - 4).toFixed(1)"
-        text-anchor="end"
-        font-family="'JetBrains Mono', monospace"
-        font-size="9"
-        fill="#f0b429"
-        opacity="0.7"
-      >start</text>
-    </svg>
+          font-size="11"
+          fill="#f0b429"
+          opacity="0.75"
+        >start</text>
+      </svg>
+    </template>
   </div>
 </template>
 
 <style scoped>
 .chart-container {
   width: 100%;
-  padding: 10px 14px 8px;
+  padding: 14px 16px 12px;
 }
 
+/* ─── Stats header ─── */
+.chart-stats {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 0 4px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.cs-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cs-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.cs-value {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.cs-dim {
+  color: var(--text-tertiary) !important;
+  font-size: 13px !important;
+}
+
+/* ─── SVG chart ─── */
 .equity-svg {
   display: block;
   width: 100%;
-  height: 160px;
+  height: 260px;
 }
 
+/* ─── States ─── */
 .chart-state {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 20px 0;
+  padding: 28px 4px;
   color: var(--text-tertiary);
   font-family: var(--font-mono);
   font-size: 12px;
