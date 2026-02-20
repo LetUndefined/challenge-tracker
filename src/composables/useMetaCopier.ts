@@ -7,8 +7,23 @@ const accounts = ref<MetaCopierAccount[]>([])
 const openPositionsMap = ref<Record<string, OpenPositionInfo>>({})
 const lastTradeMap = ref<Record<string, string>>({})
 const tradeCountMap = ref<Record<string, number>>({})
+const streakMap = ref<Record<string, { direction: 'W' | 'L'; count: number } | null>>({})
 const loading = ref(false)
 const error = ref<string | null>(null)
+
+function computeStreak(trades: MetaCopierTrade[]): { direction: 'W' | 'L'; count: number } | null {
+  const closed = trades
+    .filter(t => t.close_time !== null && (t.profit ?? 0) !== 0)
+    .sort((a, b) => (b.close_time ?? '').localeCompare(a.close_time ?? ''))
+  if (closed.length === 0) return null
+  const direction = (closed[0].profit ?? 0) > 0 ? 'W' : 'L'
+  let count = 0
+  for (const t of closed) {
+    if (((t.profit ?? 0) > 0) === (direction === 'W')) count++
+    else break
+  }
+  return { direction, count }
+}
 
 let refreshInterval: ReturnType<typeof setInterval> | null = null
 
@@ -41,14 +56,15 @@ export function useMetaCopier() {
               })
               lastTime = sorted[0].close_time ?? sorted[0].open_time
             }
-            return { id: acc.id, lastTime, count: trades.length }
+            return { id: acc.id, lastTime, count: trades.length, streak: computeStreak(trades) }
           } catch {
-            return { id: acc.id, lastTime: '', count: 0 }
+            return { id: acc.id, lastTime: '', count: 0, streak: null }
           }
         })
       )
       lastTradeMap.value = Object.fromEntries(tradeResults.map(r => [r.id, r.lastTime]))
       tradeCountMap.value = Object.fromEntries(tradeResults.map(r => [r.id, r.count]))
+      streakMap.value = Object.fromEntries(tradeResults.map(r => [r.id, r.streak]))
     } catch (e: any) {
       error.value = e.message
       console.error('Failed to fetch MetaCopier accounts:', e)
@@ -84,6 +100,7 @@ export function useMetaCopier() {
     openPositionsMap,
     lastTradeMap,
     tradeCountMap,
+    streakMap,
     loading,
     error,
     fetchAccounts,

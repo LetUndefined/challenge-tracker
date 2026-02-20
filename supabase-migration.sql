@@ -49,6 +49,7 @@ alter table challenges add column if not exists starting_balance numeric;
 alter table challenges add column if not exists cost numeric;
 alter table challenges add column if not exists daily_dd_pct numeric;
 alter table challenges add column if not exists max_dd_pct numeric;
+alter table challenges add column if not exists started_at timestamptz;
 
 -- Indexes for performance
 create index if not exists idx_snapshots_challenge on snapshots(challenge_id, timestamp desc);

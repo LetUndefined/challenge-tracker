@@ -26,6 +26,7 @@ const startingBalance = ref(0)
 const cost = ref<number | ''>('')
 const dailyDdPct = ref<number | ''>('')
 const maxDdPct = ref<number | ''>('')
+const startedAt = ref('')
 const saving = ref(false)
 const errorMsg = ref('')
 
@@ -86,6 +87,7 @@ async function handleSubmit() {
       cost: cost.value !== '' ? Number(cost.value) : undefined,
       daily_dd_pct: dailyDdPct.value !== '' ? Number(dailyDdPct.value) : undefined,
       max_dd_pct: maxDdPct.value !== '' ? Number(maxDdPct.value) : undefined,
+      started_at: startedAt.value ? new Date(startedAt.value).toISOString() : undefined,
     })
     emit('added')
     emit('close')
@@ -108,6 +110,7 @@ function resetForm() {
   cost.value = ''
   dailyDdPct.value = ''
   maxDdPct.value = ''
+  startedAt.value = ''
   errorMsg.value = ''
 }
 </script>
@@ -181,6 +184,12 @@ function resetForm() {
                 <label>Account Cost ($)</label>
                 <input v-model="cost" type="number" step="0.01" min="0" class="form-input" placeholder="e.g. 549" />
               </div>
+            </div>
+
+            <div class="form-group">
+              <label>Challenge Start Date</label>
+              <input v-model="startedAt" type="date" class="form-input" />
+              <p class="form-hint">Leave blank to use today. Set this if the challenge started before you added it.</p>
             </div>
 
             <div class="form-row" v-if="phase !== 'Master'">

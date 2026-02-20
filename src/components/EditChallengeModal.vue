@@ -25,6 +25,7 @@ const startingBalance = ref(0)
 const cost = ref<number | ''>('')
 const dailyDdPct = ref<number | ''>('')
 const maxDdPct = ref<number | ''>('')
+const startedAt = ref('')
 const saving = ref(false)
 const errorMsg = ref('')
 
@@ -40,6 +41,9 @@ watch(() => props.row, (row) => {
   cost.value = row.cost > 0 ? row.cost : ''
   dailyDdPct.value = row.daily_dd_pct !== null ? row.daily_dd_pct : ''
   maxDdPct.value = row.max_dd_pct !== null ? row.max_dd_pct : ''
+  // Convert ISO to yyyy-mm-dd for the date input
+  const src = row.started_at ?? row.created_at
+  startedAt.value = src ? src.slice(0, 10) : ''
 }, { immediate: true })
 
 // Auto-fill target/DD when prop firm + phase changes
@@ -74,6 +78,7 @@ async function handleSubmit() {
       cost: cost.value !== '' ? Number(cost.value) : 0,
       daily_dd_pct: dailyDdPct.value !== '' ? Number(dailyDdPct.value) : null,
       max_dd_pct: maxDdPct.value !== '' ? Number(maxDdPct.value) : null,
+      started_at: startedAt.value ? new Date(startedAt.value).toISOString() : null,
     })
     emit('saved')
     emit('close')
@@ -147,6 +152,12 @@ async function handleSubmit() {
                 <label>Account Cost ($)</label>
                 <input v-model="cost" type="number" step="0.01" min="0" class="form-input" placeholder="e.g. 549" />
               </div>
+            </div>
+
+            <div class="form-group">
+              <label>Challenge Start Date</label>
+              <input v-model="startedAt" type="date" class="form-input" />
+              <p class="form-hint">Used as the starting point for the equity chart.</p>
             </div>
 
             <div class="form-row" v-if="phase !== 'Master'">
@@ -344,6 +355,12 @@ async function handleSubmit() {
 .form-input:focus {
   border-color: var(--purple);
   box-shadow: 0 0 0 1px var(--purple-muted);
+}
+
+.form-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin: 0;
 }
 
 .form-row {

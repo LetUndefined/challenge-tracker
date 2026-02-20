@@ -104,13 +104,14 @@ function formatLastTrade(ts: string | null): string {
           <th>Progress</th>
           <th>State</th>
           <th class="text-right">Trades</th>
+          <th>Streak</th>
           <th>Last Trade</th>
           <th class="th-actions"></th>
         </tr>
       </thead>
       <tbody>
         <tr v-if="rows.length === 0">
-          <td colspan="16" class="empty-state">
+          <td colspan="17" class="empty-state">
             <div class="empty-inner">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -204,6 +205,16 @@ function formatLastTrade(ts: string | null): string {
               </div>
             </td>
             <td class="text-right mono">{{ row.trades_count }}</td>
+            <td>
+              <span
+                v-if="row.streak"
+                class="streak-badge"
+                :class="row.streak.direction === 'W' ? 'streak-win' : 'streak-loss'"
+              >
+                {{ row.streak.direction }}{{ row.streak.count }}
+              </span>
+              <span v-else class="text-ghost">—</span>
+            </td>
             <td class="text-ghost mono-sm">{{ formatLastTrade(row.last_trade) }}</td>
             <td>
               <div class="row-actions">
@@ -223,11 +234,11 @@ function formatLastTrade(ts: string | null): string {
           </tr>
           <!-- Expandable chart row -->
           <tr v-if="expandedId === row.id" class="chart-row">
-            <td colspan="16" class="chart-td">
+            <td colspan="17" class="chart-td">
               <ProgressChart
                 :snapshots="snapshotsCache[row.id] ?? []"
                 :starting-balance="row.starting_balance"
-                :created-at="row.created_at"
+                :created-at="row.started_at ?? row.created_at"
                 :loading="!!snapshotsLoading[row.id]"
               />
             </td>
@@ -288,6 +299,13 @@ function formatLastTrade(ts: string | null): string {
         <span class="chip chip-firm">{{ row.prop_firm }}</span>
         <span class="chip" :class="row.phase === 'Master' ? 'chip-master' : 'chip-phase'">{{ row.phase }}</span>
         <span class="card-owner">{{ row.owner }}</span>
+        <span
+          v-if="row.streak"
+          class="streak-badge"
+          :class="row.streak.direction === 'W' ? 'streak-win' : 'streak-loss'"
+        >
+          {{ row.streak.direction }}{{ row.streak.count }}
+        </span>
       </div>
 
       <div class="card-grid">
@@ -645,6 +663,30 @@ function formatLastTrade(ts: string | null): string {
 @keyframes danger-pulse {
   0%, 100% { background: rgba(255, 71, 87, 0.07); }
   50%       { background: rgba(255, 71, 87, 0.13); }
+}
+
+/* ─── Streak badge ─── */
+.streak-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.streak-win {
+  background: rgba(0, 230, 118, 0.1);
+  color: var(--green);
+  border: 1px solid rgba(0, 230, 118, 0.2);
+}
+
+.streak-loss {
+  background: rgba(255, 71, 87, 0.1);
+  color: var(--red);
+  border: 1px solid rgba(255, 71, 87, 0.2);
 }
 
 /* ─── Master chip ─── */

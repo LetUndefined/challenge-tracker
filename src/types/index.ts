@@ -15,6 +15,7 @@ export interface Challenge {
   cost?: number
   daily_dd_pct?: number | null
   max_dd_pct?: number | null
+  started_at?: string | null
   created_at: string
 }
 
@@ -101,6 +102,8 @@ export interface ChallengeRow {
   cost: number
   daily_dd_pct: number | null
   max_dd_pct: number | null
+  started_at: string | null
+  streak: { direction: 'W' | 'L'; count: number } | null
   created_at: string
 }
 
