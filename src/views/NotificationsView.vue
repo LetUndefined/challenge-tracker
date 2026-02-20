@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useNotifications } from '@/composables/useNotifications'
+import { usePushNotifications } from '@/composables/usePushNotifications'
 import type { TradeNotification } from '@/composables/useNotifications'
 
 const { notifications, loading, includeMaster, startPolling, stopPolling } = useNotifications()
+const { supported: pushSupported, permission: pushPermission, requestPermission } = usePushNotifications()
 
 // ── Group by account ─────────────────────────────────────
 interface AccountGroup {
@@ -101,6 +103,28 @@ onUnmounted(() => stopPolling())
           <span class="toggle-switch" />
           <span class="toggle-text">Include master</span>
         </label>
+
+        <!-- Push notification permission -->
+        <button
+          v-if="pushSupported && pushPermission !== 'granted'"
+          class="btn-push"
+          :disabled="pushPermission === 'denied'"
+          @click="requestPermission"
+          :title="pushPermission === 'denied' ? 'Blocked in browser settings' : 'Enable push alerts'"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          {{ pushPermission === 'denied' ? 'Alerts blocked' : 'Enable alerts' }}
+        </button>
+        <span v-else-if="pushSupported && pushPermission === 'granted'" class="push-active">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          Alerts on
+        </span>
 
         <span class="account-count">
           {{ accountGroups.length }} account{{ accountGroups.length !== 1 ? 's' : '' }}
@@ -275,6 +299,44 @@ onUnmounted(() => stopPolling())
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-tertiary);
+}
+
+.btn-push {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: var(--accent-muted);
+  border: 1px solid rgba(240, 180, 41, 0.2);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-push:hover:not(:disabled) {
+  background: rgba(240, 180, 41, 0.15);
+  box-shadow: 0 0 10px var(--accent-muted);
+}
+
+.btn-push:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: var(--text-tertiary);
+  background: transparent;
+  border-color: var(--border-subtle);
+}
+
+.push-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--green);
 }
 
 /* ─── Toggle ─── */

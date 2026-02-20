@@ -2,6 +2,7 @@ import { ref, computed, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useMetaCopier } from './useMetaCopier'
 import { useChallenges } from './useChallenges'
+import { usePushNotifications } from './usePushNotifications'
 import type { MetaCopierTrade } from '@/types'
 
 export interface TradeNotification {
@@ -30,6 +31,7 @@ let pollInterval: ReturnType<typeof setInterval> | null = null
 export function useNotifications() {
   const { fetchTrades } = useMetaCopier()
   const { challenges, challengeRows } = useChallenges()
+  const { notify } = usePushNotifications()
 
   async function pollForNewTrades() {
     loading.value = true
@@ -46,6 +48,7 @@ export function useNotifications() {
           const key = `${ch.metacopier_account_id}-${trade.id}`
           if (!seenTradeIds.value.has(key)) {
             seenTradeIds.value.add(key)
+            const isOpen = trade.close_time === null
             notifications.value.unshift({
               id: key,
               challenge_id: ch.id,
@@ -58,9 +61,29 @@ export function useNotifications() {
               close_price: trade.close_price,
               open_time: trade.open_time,
               close_time: trade.close_time,
-              is_open: trade.close_time === null,
+              is_open: isOpen,
               timestamp: trade.close_time ?? trade.open_time,
             })
+
+            // Fire OS push notification
+            const side = trade.type.toLowerCase()
+            const dir = side.includes('buy') || side === 'long' ? 'BUY' : 'SELL'
+            if (isOpen) {
+              notify(
+                `📈 Trade Opened — ${trade.symbol}`,
+                `${alias} · ${dir} ${trade.volume}L @ ${trade.open_price}`,
+                key,
+              )
+            } else {
+              const pnl = trade.profit != null
+                ? ` · ${trade.profit >= 0 ? '+' : ''}$${Math.abs(trade.profit).toFixed(2)}`
+                : ''
+              notify(
+                `${(trade.profit ?? 0) >= 0 ? '✅' : '❌'} Trade Closed — ${trade.symbol}`,
+                `${alias} · ${dir} ${trade.volume}L${pnl}`,
+                key,
+              )
+            }
           }
         }
       }

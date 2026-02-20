@@ -9,6 +9,9 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       base: '/challenge-tracker/',
       manifest: {
         name: 'Challenge Tracker',
@@ -35,22 +38,8 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        // Cache app shell; always go network-first for API calls
-        navigateFallback: '/challenge-tracker/index.html',
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
-        runtimeCaching: [
-          {
-            // MetaCopier API — network only (live data)
-            urlPattern: /api\.metacopier\.io/,
-            handler: 'NetworkOnly',
-          },
-          {
-            // Supabase — network only (live data)
-            urlPattern: /supabase\.co/,
-            handler: 'NetworkOnly',
-          },
-        ],
       },
     }),
   ],
