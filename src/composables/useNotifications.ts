@@ -23,10 +23,12 @@ export interface TradeNotification {
 
 const notifications = ref<TradeNotification[]>([])
 const seenTradeIds = ref<Set<string>>(new Set())
+const targetAlertedIds = ref<Set<string>>(new Set())
 const loading = ref(false)
 const includeMaster = ref(false)
 
 let pollInterval: ReturnType<typeof setInterval> | null = null
+let targetWatchSetup = false
 
 export function useNotifications() {
   const { fetchTrades } = useMetaCopier()
@@ -111,6 +113,28 @@ export function useNotifications() {
     } finally {
       loading.value = false
     }
+  }
+
+  // Watch for accounts hitting their profit target — fires once per account per session
+  if (!targetWatchSetup) {
+    targetWatchSetup = true
+    watch(challengeRows, (rows) => {
+      for (const row of rows) {
+        if (
+          row.is_master ||
+          row.target_pct <= 0 ||
+          row.progress < row.target_pct ||
+          targetAlertedIds.value.has(row.id)
+        ) continue
+
+        targetAlertedIds.value.add(row.id)
+        notify(
+          'Profit Target Reached 🎯',
+          `${row.alias} · ${row.progress}% / ${row.target_pct}% target`,
+          `target-${row.id}`,
+        )
+      }
+    })
   }
 
   // When master toggle changes, add/remove master notifications
