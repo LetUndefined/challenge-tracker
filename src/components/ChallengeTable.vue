@@ -41,6 +41,14 @@ function formatPnl(val: number): string {
   return `-$${abs}`
 }
 
+// Row danger coloring based on drawdown from starting balance
+function ddClass(row: ChallengeRow): string {
+  if (row.is_master || row.progress >= 0) return ''
+  if (row.progress <= -5) return 'row-danger'
+  if (row.progress <= -3) return 'row-warn'
+  return 'row-caution'
+}
+
 function pnlClass(val: number): string {
   if (val > 0) return 'pnl-positive'
   if (val < 0) return 'pnl-negative'
@@ -107,8 +115,7 @@ function formatLastTrade(ts: string | null): string {
         <template v-for="(row, i) in rows" :key="row.id">
           <tr
             :style="{ 'animation-delay': `${i * 30}ms` }"
-            :class="{ 'row-expanded': expandedId === row.id }"
-            class="data-row"
+            :class="['data-row', ddClass(row), { 'row-expanded': expandedId === row.id }]"
           >
             <td>
               <div class="account-cell clickable" @click="toggleRow(row)" :title="expandedId === row.id ? 'Collapse chart' : 'Expand chart'">
@@ -227,6 +234,7 @@ function formatLastTrade(ts: string | null): string {
       v-for="(row, i) in rows"
       :key="row.id"
       class="challenge-card"
+      :class="ddClass(row)"
       :style="{ 'animation-delay': `${i * 30}ms` }"
     >
       <div class="card-header" @click="toggleRow(row)">
@@ -595,6 +603,28 @@ function formatLastTrade(ts: string | null): string {
   font-size: 13px;
 }
 
+/* ─── Drawdown row coloring ─── */
+.row-caution {
+  background: rgba(255, 159, 67, 0.03) !important;
+  border-left: 2px solid rgba(255, 159, 67, 0.4) !important;
+}
+
+.row-warn {
+  background: rgba(255, 159, 67, 0.06) !important;
+  border-left: 2px solid var(--orange) !important;
+}
+
+.row-danger {
+  background: rgba(255, 71, 87, 0.07) !important;
+  border-left: 2px solid var(--red) !important;
+  animation: danger-pulse 2.5s ease-in-out infinite !important;
+}
+
+@keyframes danger-pulse {
+  0%, 100% { background: rgba(255, 71, 87, 0.07); }
+  50%       { background: rgba(255, 71, 87, 0.13); }
+}
+
 /* ─── Master chip ─── */
 .chip-master {
   background: rgba(24, 220, 255, 0.08);
@@ -665,6 +695,13 @@ function formatLastTrade(ts: string | null): string {
   background: var(--red-muted);
   border-color: rgba(255, 71, 87, 0.2);
   color: var(--red);
+}
+
+/* Mobile DD coloring — override border since cards use border shorthand */
+@media (max-width: 768px) {
+  .challenge-card.row-caution { border-color: rgba(255, 159, 67, 0.4); }
+  .challenge-card.row-warn    { border-color: var(--orange); }
+  .challenge-card.row-danger  { border-color: var(--red); }
 }
 
 /* ─── Mobile cards (hidden on desktop) ─── */
