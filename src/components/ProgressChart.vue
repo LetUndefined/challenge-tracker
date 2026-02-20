@@ -101,21 +101,21 @@ const yLabels = computed(() => {
   return labels
 })
 
-// X axis labels (up to 6 evenly spaced), with hour resolution for short ranges
+// X axis labels (up to 6 evenly spaced calendar dates)
 const xLabels = computed(() => {
   if (!hasData.value) return []
   const labels: { x: number; label: string }[] = []
-  const spanMs = maxT.value - minT.value
-  const useHours = spanMs < 3 * 24 * 60 * 60 * 1000
   const count = Math.min(6, chartData.value.length)
+  const seen = new Set<string>()
   for (let i = 0; i < count; i++) {
     const idx = Math.round((i / Math.max(count - 1, 1)) * (chartData.value.length - 1))
     const p = chartData.value[idx]
     const d = new Date(p.t)
-    const label = useHours
-      ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-      : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    labels.push({ x: mapX(p.t), label })
+    const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    if (!seen.has(label)) {
+      seen.add(label)
+      labels.push({ x: mapX(p.t), label })
+    }
   }
   return labels
 })
