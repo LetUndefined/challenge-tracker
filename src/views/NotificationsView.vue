@@ -5,7 +5,12 @@ import { usePushNotifications } from '@/composables/usePushNotifications'
 import type { TradeNotification } from '@/composables/useNotifications'
 
 const { notifications, loading, includeMaster, startPolling, stopPolling } = useNotifications()
-const { supported: pushSupported, permission: pushPermission, requestPermission } = usePushNotifications()
+const { supported: pushSupported, permission: pushPermission, requestPermission, notify } = usePushNotifications()
+
+async function testNotification() {
+  await notify('Trade Opened', 'EURUSD · 4/4 accounts', 'test-open')
+  setTimeout(() => notify('Take Profit hit ✅', 'EURUSD · +$312.50', 'test-close'), 3000)
+}
 
 // ── Group by account ─────────────────────────────────────
 interface AccountGroup {
@@ -125,6 +130,14 @@ onUnmounted(() => stopPolling())
           </svg>
           Alerts on
         </span>
+        <button
+          v-if="pushSupported && pushPermission === 'granted'"
+          class="btn-test"
+          @click="testNotification"
+          title="Fires a test open + close notification 3s apart"
+        >
+          Test
+        </button>
 
         <span class="account-count">
           {{ accountGroups.length }} account{{ accountGroups.length !== 1 ? 's' : '' }}
@@ -336,6 +349,23 @@ onUnmounted(() => stopPolling())
   gap: 5px;
   font-family: var(--font-mono);
   font-size: 11px;
+  color: var(--green);
+}
+
+.btn-test {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-test:hover {
+  border-color: var(--green);
   color: var(--green);
 }
 
