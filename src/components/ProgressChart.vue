@@ -101,20 +101,21 @@ const yLabels = computed(() => {
   return labels
 })
 
-// X axis labels (up to 6 evenly spaced calendar dates)
+// X axis labels — evenly spaced dates across the full time range, independent of data points
 const xLabels = computed(() => {
   if (!hasData.value) return []
+  const span = maxT.value - minT.value
+  // Choose tick count based on span
+  const tickCount = span < 2 * 86_400_000 ? 3 : span < 7 * 86_400_000 ? 4 : 6
   const labels: { x: number; label: string }[] = []
-  const count = Math.min(6, chartData.value.length)
   const seen = new Set<string>()
-  for (let i = 0; i < count; i++) {
-    const idx = Math.round((i / Math.max(count - 1, 1)) * (chartData.value.length - 1))
-    const p = chartData.value[idx]
-    const d = new Date(p.t)
+  for (let i = 0; i < tickCount; i++) {
+    const t = minT.value + (i / (tickCount - 1)) * span
+    const d = new Date(t)
     const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     if (!seen.has(label)) {
       seen.add(label)
-      labels.push({ x: mapX(p.t), label })
+      labels.push({ x: mapX(t), label })
     }
   }
   return labels
