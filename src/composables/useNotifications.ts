@@ -65,24 +65,39 @@ export function useNotifications() {
               timestamp: trade.close_time ?? trade.open_time,
             })
 
-            // Fire OS push notification
-            const side = trade.type.toLowerCase()
-            const dir = side.includes('buy') || side === 'long' ? 'BUY' : 'SELL'
-            if (isOpen) {
-              notify(
-                `📈 Trade Opened — ${trade.symbol}`,
-                `${alias} · ${dir} ${trade.volume}L @ ${trade.open_price}`,
-                key,
-              )
-            } else {
-              const pnl = trade.profit != null
-                ? ` · ${trade.profit >= 0 ? '+' : ''}$${Math.abs(trade.profit).toFixed(2)}`
-                : ''
-              notify(
-                `${(trade.profit ?? 0) >= 0 ? '✅' : '❌'} Trade Closed — ${trade.symbol}`,
-                `${alias} · ${dir} ${trade.volume}L${pnl}`,
-                key,
-              )
+            // Push alerts — master account only
+            if (row?.is_master) {
+              const tradeSide = trade.type.toLowerCase()
+              const isBuy = tradeSide.includes('buy') || tradeSide === 'long'
+
+              if (isOpen) {
+                // Count how many copier accounts opened the same position
+                const copiers = challengeRows.value.filter(r => !r.is_master && r.state === 'Connected')
+                const total = copiers.length
+                const matched = copiers.filter(r =>
+                  r.open_positions.some(p => {
+                    const ps = p.side.toLowerCase()
+                    const pIsBuy = ps.includes('buy') || ps === 'long'
+                    return p.symbol.toUpperCase() === trade.symbol.toUpperCase() && pIsBuy === isBuy
+                  })
+                ).length
+                notify(
+                  'Trade Opened',
+                  `${trade.symbol} · ${matched}/${total} accounts`,
+                  key,
+                )
+              } else {
+                const profit = trade.profit ?? 0
+                const outcome = profit > 0 ? 'Take Profit hit ✅' : profit < 0 ? 'Stop Loss hit ❌' : 'Trade Closed'
+                const pnlStr = profit !== 0
+                  ? ` · ${profit >= 0 ? '+' : ''}$${Math.abs(profit).toFixed(2)}`
+                  : ''
+                notify(
+                  outcome,
+                  `${trade.symbol}${pnlStr}`,
+                  key,
+                )
+              }
             }
           }
         }
