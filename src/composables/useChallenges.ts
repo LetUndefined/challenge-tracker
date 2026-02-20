@@ -118,6 +118,8 @@ export function useChallenges() {
         login_number: ch.login_number,
         login_server: ch.login_server,
         cost: ch.cost ?? 0,
+        daily_dd_pct: ch.daily_dd_pct ?? null,
+        max_dd_pct: ch.max_dd_pct ?? null,
         created_at: ch.created_at,
       }
     })
@@ -138,6 +140,20 @@ export function useChallenges() {
 
     if (err) throw err
     challenges.value.unshift(data)
+    return data
+  }
+
+  async function updateChallenge(id: string, fields: Partial<Omit<Challenge, 'id' | 'created_at' | 'metacopier_account_id' | 'login_number' | 'login_server' | 'platform'>>) {
+    const { data, error: err } = await supabase
+      .from('challenges')
+      .update(fields)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (err) throw err
+    const idx = challenges.value.findIndex(c => c.id === id)
+    if (idx !== -1) challenges.value[idx] = data
     return data
   }
 
@@ -188,6 +204,7 @@ export function useChallenges() {
     error,
     fetchChallenges,
     addChallenge,
+    updateChallenge,
     deleteChallenge,
     captureSnapshots,
     fetchSnapshots,

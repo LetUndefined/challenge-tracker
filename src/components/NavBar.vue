@@ -10,6 +10,7 @@ const mobileOpen = ref(false)
 const navItems = [
   { path: '/', label: 'Challenges' },
   { path: '/notifications', label: 'Notifications' },
+  { path: '/analytics', label: 'Analytics' },
   { path: '/prop-firms', label: 'Prop Firms' },
   { path: '/owners', label: 'Owners' },
 ]

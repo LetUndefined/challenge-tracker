@@ -1,27 +1,26 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import type { MetaCopierAccount } from '@/types'
+import { ref, watch } from 'vue'
+import type { ChallengeRow } from '@/types'
 import { useChallenges } from '@/composables/useChallenges'
 import { propFirms } from '@/lib/propFirms'
 
 const props = defineProps<{
   show: boolean
-  unlinkedAccounts: MetaCopierAccount[]
+  row: ChallengeRow | null
 }>()
 
 const emit = defineEmits<{
   close: []
-  added: []
+  saved: []
 }>()
 
-const { addChallenge, guessProFirm, guessPlatform } = useChallenges()
+const { updateChallenge } = useChallenges()
 
-const selectedAccountId = ref('')
 const alias = ref('')
-const propFirm = ref('')
-const phase = ref<'Phase 1' | 'Phase 2' | 'Funded' | 'Master'>('Phase 1')
-const targetPct = ref(8)
 const owner = ref('')
+const phase = ref<'Phase 1' | 'Phase 2' | 'Funded' | 'Master'>('Phase 1')
+const propFirm = ref('')
+const targetPct = ref(0)
 const startingBalance = ref(0)
 const cost = ref<number | ''>('')
 const dailyDdPct = ref<number | ''>('')
@@ -29,29 +28,24 @@ const maxDdPct = ref<number | ''>('')
 const saving = ref(false)
 const errorMsg = ref('')
 
-const selectedAccount = computed(() =>
-  props.unlinkedAccounts.find(a => a.id === selectedAccountId.value)
-)
+// Pre-fill when row changes or modal opens
+watch(() => props.row, (row) => {
+  if (!row) return
+  alias.value = row.alias
+  owner.value = row.owner
+  phase.value = row.phase as any
+  propFirm.value = row.prop_firm
+  targetPct.value = row.target_pct
+  startingBalance.value = row.starting_balance
+  cost.value = row.cost > 0 ? row.cost : ''
+  dailyDdPct.value = row.daily_dd_pct !== null ? row.daily_dd_pct : ''
+  maxDdPct.value = row.max_dd_pct !== null ? row.max_dd_pct : ''
+}, { immediate: true })
 
-watch(selectedAccountId, (id) => {
-  const acc = props.unlinkedAccounts.find(a => a.id === id)
-  if (!acc) return
-  alias.value = acc.name || acc.login
-  startingBalance.value = acc.balance ?? 0
-  const guessed = guessProFirm(acc.server)
-  if (guessed !== 'Unknown') propFirm.value = guessed
-  const firm = propFirms.find(f => f.name === propFirm.value)
-  if (firm) {
-    const phaseConfig = firm.phases.find(p => p.name === phase.value)
-    if (phaseConfig) targetPct.value = phaseConfig.target_pct
-  }
-})
-
+// Auto-fill target/DD when prop firm + phase changes
 watch([propFirm, phase], () => {
   if (phase.value === 'Master') {
     targetPct.value = 0
-    dailyDdPct.value = ''
-    maxDdPct.value = ''
     return
   }
   const firm = propFirms.find(f => f.name === propFirm.value)
@@ -66,64 +60,44 @@ watch([propFirm, phase], () => {
 })
 
 async function handleSubmit() {
-  if (!selectedAccountId.value) { errorMsg.value = 'Select an account'; return }
-  if (!propFirm.value && phase.value !== 'Master') { errorMsg.value = 'Select a prop firm'; return }
-  const acc = selectedAccount.value!
+  if (!props.row) return
   saving.value = true
   errorMsg.value = ''
   try {
-    await addChallenge({
-      metacopier_account_id: acc.id,
+    await updateChallenge(props.row.id, {
       alias: alias.value,
-      prop_firm: propFirm.value || 'Master',
-      phase: phase.value,
-      platform: guessPlatform(acc),
-      target_pct: targetPct.value,
       owner: owner.value,
-      login_number: acc.login,
-      login_server: acc.server,
+      phase: phase.value,
+      prop_firm: phase.value === 'Master' ? 'Master' : propFirm.value,
+      target_pct: targetPct.value,
       starting_balance: startingBalance.value > 0 ? startingBalance.value : undefined,
-      cost: cost.value !== '' ? Number(cost.value) : undefined,
-      daily_dd_pct: dailyDdPct.value !== '' ? Number(dailyDdPct.value) : undefined,
-      max_dd_pct: maxDdPct.value !== '' ? Number(maxDdPct.value) : undefined,
+      cost: cost.value !== '' ? Number(cost.value) : 0,
+      daily_dd_pct: dailyDdPct.value !== '' ? Number(dailyDdPct.value) : null,
+      max_dd_pct: maxDdPct.value !== '' ? Number(maxDdPct.value) : null,
     })
-    emit('added')
+    emit('saved')
     emit('close')
-    resetForm()
   } catch (e: any) {
     errorMsg.value = e.message
   } finally {
     saving.value = false
   }
 }
-
-function resetForm() {
-  selectedAccountId.value = ''
-  alias.value = ''
-  propFirm.value = ''
-  phase.value = 'Phase 1'
-  targetPct.value = 8
-  owner.value = ''
-  startingBalance.value = 0
-  cost.value = ''
-  dailyDdPct.value = ''
-  maxDdPct.value = ''
-  errorMsg.value = ''
-}
 </script>
 
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="show" class="modal-overlay" @click.self="emit('close')">
+      <div v-if="show && row" class="modal-overlay" @click.self="emit('close')">
         <div class="modal">
           <div class="modal-accent" />
           <div class="modal-header">
             <div class="modal-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 5v14M5 12h14"/>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
               </svg>
-              <h2>Add Challenge</h2>
+              <h2>Edit Challenge</h2>
             </div>
             <button class="btn-close" @click="emit('close')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -135,17 +109,9 @@ function resetForm() {
           <form class="modal-body" @submit.prevent="handleSubmit">
             <div v-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
 
-            <div class="form-group">
-              <label>MetaCopier Account</label>
-              <select v-model="selectedAccountId" class="form-input">
-                <option value="" disabled>Select an account...</option>
-                <option v-for="acc in unlinkedAccounts" :key="acc.id" :value="acc.id">
-                  {{ acc.name || acc.login }} / {{ acc.server }} ({{ acc.platform }})
-                </option>
-              </select>
-              <p v-if="unlinkedAccounts.length === 0" class="form-hint">
-                All MetaCopier accounts are already tracked.
-              </p>
+            <div class="account-info">
+              <span class="account-label">Account</span>
+              <span class="account-value">{{ row.alias }} · {{ row.login_number }}</span>
             </div>
 
             <div class="form-group">
@@ -175,7 +141,7 @@ function resetForm() {
             <div class="form-row">
               <div class="form-group">
                 <label>Starting Balance ($)</label>
-                <input v-model.number="startingBalance" type="number" step="0.01" min="0" class="form-input" placeholder="e.g. 10000" />
+                <input v-model.number="startingBalance" type="number" step="0.01" min="0" class="form-input" />
               </div>
               <div class="form-group">
                 <label>Account Cost ($)</label>
@@ -213,7 +179,7 @@ function resetForm() {
             <div class="modal-footer">
               <button type="button" class="btn-secondary" @click="emit('close')">Cancel</button>
               <button type="submit" class="btn-primary" :disabled="saving">
-                {{ saving ? 'Adding...' : 'Add Challenge' }}
+                {{ saving ? 'Saving...' : 'Save Changes' }}
               </button>
             </div>
           </form>
@@ -224,7 +190,6 @@ function resetForm() {
 </template>
 
 <style scoped>
-/* ─── Overlay ─── */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -236,13 +201,11 @@ function resetForm() {
   z-index: 1000;
 }
 
-/* ─── Transitions ─── */
 .modal-enter-active { transition: opacity 0.2s ease; }
 .modal-leave-active { transition: opacity 0.15s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 .modal-enter-active .modal { animation: slideDown 0.3s var(--ease-out); }
 
-/* ─── Modal ─── */
 .modal {
   position: relative;
   background: var(--surface);
@@ -260,7 +223,7 @@ function resetForm() {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, var(--accent) 0%, transparent 100%);
+  background: linear-gradient(90deg, var(--purple) 0%, transparent 100%);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   opacity: 0.5;
 }
@@ -277,7 +240,7 @@ function resetForm() {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--accent);
+  color: var(--purple);
 }
 
 .modal-title h2 {
@@ -307,12 +270,37 @@ function resetForm() {
   color: var(--text-secondary);
 }
 
-/* ─── Form ─── */
 .modal-body {
   padding: 22px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.account-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.account-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+
+.account-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .error-msg {
@@ -354,14 +342,8 @@ function resetForm() {
 }
 
 .form-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent-muted);
-}
-
-.form-hint {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  margin: 0;
+  border-color: var(--purple);
+  box-shadow: 0 0 0 1px var(--purple-muted);
 }
 
 .form-row {
@@ -369,7 +351,6 @@ function resetForm() {
   gap: 12px;
 }
 
-/* ─── Footer ─── */
 .modal-footer {
   display: flex;
   justify-content: flex-end;
@@ -396,10 +377,10 @@ function resetForm() {
 
 .btn-primary {
   padding: 8px 20px;
-  background: var(--accent);
+  background: var(--purple);
   border: none;
   border-radius: var(--radius-sm);
-  color: var(--bg);
+  color: #fff;
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
@@ -408,8 +389,8 @@ function resetForm() {
 }
 
 .btn-primary:hover {
-  background: var(--accent-bright);
-  box-shadow: 0 2px 12px var(--accent-muted);
+  opacity: 0.9;
+  box-shadow: 0 2px 12px var(--purple-muted);
 }
 
 .btn-primary:disabled {

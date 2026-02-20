@@ -13,6 +13,8 @@ export interface Challenge {
   login_server: string
   starting_balance?: number
   cost?: number
+  daily_dd_pct?: number | null
+  max_dd_pct?: number | null
   created_at: string
 }
 
@@ -97,6 +99,8 @@ export interface ChallengeRow {
   login_number: string
   login_server: string
   cost: number
+  daily_dd_pct: number | null
+  max_dd_pct: number | null
   created_at: string
 }
 

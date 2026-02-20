@@ -44,6 +44,12 @@ create table if not exists trades (
   close_time timestamptz
 );
 
+-- Add columns added after initial schema
+alter table challenges add column if not exists starting_balance numeric;
+alter table challenges add column if not exists cost numeric;
+alter table challenges add column if not exists daily_dd_pct numeric;
+alter table challenges add column if not exists max_dd_pct numeric;
+
 -- Indexes for performance
 create index if not exists idx_snapshots_challenge on snapshots(challenge_id, timestamp desc);
 create index if not exists idx_trades_challenge on trades(challenge_id, close_time desc);

@@ -2,10 +2,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMetaCopier } from '@/composables/useMetaCopier'
 import { useChallenges } from '@/composables/useChallenges'
+import type { ChallengeRow } from '@/types'
 import StatsBar from '@/components/StatsBar.vue'
 import FilterBar from '@/components/FilterBar.vue'
 import ChallengeTable from '@/components/ChallengeTable.vue'
 import AddChallengeModal from '@/components/AddChallengeModal.vue'
+import EditChallengeModal from '@/components/EditChallengeModal.vue'
 
 const { startAutoRefresh, stopAutoRefresh, loading: mcLoading, error: mcError } = useMetaCopier()
 const {
@@ -21,6 +23,8 @@ const search = ref('')
 const ownerFilter = ref('')
 const statusFilter = ref('')
 const showModal = ref(false)
+const showEditModal = ref(false)
+const editingRow = ref<ChallengeRow | null>(null)
 
 let snapshotInterval: ReturnType<typeof setInterval> | null = null
 
@@ -45,6 +49,11 @@ async function handleDelete(id: string) {
   if (confirm('Remove this challenge?')) {
     await deleteChallenge(id)
   }
+}
+
+function handleEdit(row: ChallengeRow) {
+  editingRow.value = row
+  showEditModal.value = true
 }
 
 onMounted(async () => {
@@ -87,13 +96,20 @@ onUnmounted(() => {
       @add-challenge="showModal = true"
     />
 
-    <ChallengeTable :rows="filteredRows" @delete="handleDelete" />
+    <ChallengeTable :rows="filteredRows" @delete="handleDelete" @edit="handleEdit" />
 
     <AddChallengeModal
       :show="showModal"
       :unlinked-accounts="unlinkedAccounts"
       @close="showModal = false"
       @added="fetchChallenges()"
+    />
+
+    <EditChallengeModal
+      :show="showEditModal"
+      :row="editingRow"
+      @close="showEditModal = false; editingRow = null"
+      @saved="fetchChallenges()"
     />
   </div>
 </template>

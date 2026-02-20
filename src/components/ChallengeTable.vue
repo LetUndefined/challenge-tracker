@@ -10,6 +10,7 @@ defineProps<{
 
 const emit = defineEmits<{
   delete: [id: string]
+  edit: [row: ChallengeRow]
 }>()
 
 const { fetchSnapshots } = useChallenges()
@@ -41,9 +42,16 @@ function formatPnl(val: number): string {
   return `-$${abs}`
 }
 
-// Row danger coloring based on drawdown from starting balance
+// Row danger coloring based on drawdown relative to max DD limit
 function ddClass(row: ChallengeRow): string {
   if (row.is_master || row.progress >= 0) return ''
+  if (row.max_dd_pct !== null && row.max_dd_pct > 0) {
+    const ddUsed = Math.abs(row.progress) / row.max_dd_pct * 100
+    if (ddUsed >= 80) return 'row-danger'
+    if (ddUsed >= 50) return 'row-warn'
+    return 'row-caution'
+  }
+  // Fallback thresholds if no max_dd_pct set
   if (row.progress <= -5) return 'row-danger'
   if (row.progress <= -3) return 'row-warn'
   return 'row-caution'
@@ -198,11 +206,19 @@ function formatLastTrade(ts: string | null): string {
             <td class="text-right mono">{{ row.trades_count }}</td>
             <td class="text-ghost mono-sm">{{ formatLastTrade(row.last_trade) }}</td>
             <td>
-              <button class="btn-delete" title="Remove" @click="emit('delete', row.id)">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 6 6 18M6 6l12 12"/>
-                </svg>
-              </button>
+              <div class="row-actions">
+                <button class="btn-edit" title="Edit" @click="emit('edit', row)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+                <button class="btn-delete" title="Remove" @click="emit('delete', row.id)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6 6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
             </td>
           </tr>
           <!-- Expandable chart row -->
@@ -254,6 +270,12 @@ function formatLastTrade(ts: string | null): string {
             <span class="state-dot" />
             <span>{{ row.state }}</span>
           </div>
+          <button class="btn-edit" title="Edit" @click="emit('edit', row)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
           <button class="btn-delete" title="Remove" @click="emit('delete', row.id)">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6 6 18M6 6l12 12"/>
@@ -676,19 +698,31 @@ function formatLastTrade(ts: string | null): string {
   animation: slideDown 0.25s var(--ease-out);
 }
 
-/* ─── Delete button ─── */
-.btn-delete {
+/* ─── Row actions ─── */
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-edit, .btn-delete {
   width: 26px;
   height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  color: var(--text-ghost);
+  color: var(--text-tertiary);
   cursor: pointer;
   transition: all 0.15s;
+}
+
+.btn-edit:hover {
+  background: var(--purple-muted);
+  border-color: rgba(165, 94, 234, 0.2);
+  color: var(--purple);
 }
 
 .btn-delete:hover {
