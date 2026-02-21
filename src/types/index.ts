@@ -104,6 +104,7 @@ export interface ChallengeRow {
   max_dd_pct: number | null
   started_at: string | null
   streak: { direction: 'W' | 'L'; count: number } | null
+  daily_pnl: number
   created_at: string
 }
 

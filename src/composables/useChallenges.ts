@@ -40,7 +40,7 @@ function guessPlatform(account: MetaCopierAccount): string {
 }
 
 export function useChallenges() {
-  const { accounts, openPositionsMap, lastTradeMap, tradeCountMap, streakMap } = useMetaCopier()
+  const { accounts, openPositionsMap, lastTradeMap, tradeCountMap, streakMap, dailyPnlMap } = useMetaCopier()
   const startingBalances = ref<Record<string, number>>({})
 
   async function fetchChallenges() {
@@ -122,6 +122,7 @@ export function useChallenges() {
         max_dd_pct: ch.max_dd_pct ?? null,
         started_at: ch.started_at ?? null,
         streak: streakMap.value[ch.metacopier_account_id] ?? null,
+        daily_pnl: dailyPnlMap.value[ch.metacopier_account_id] ?? 0,
         created_at: ch.created_at,
       }
     })

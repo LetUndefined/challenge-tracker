@@ -12,6 +12,8 @@ const navItems = [
   { path: '/notifications', label: 'Notifications' },
   { path: '/analytics', label: 'Analytics' },
   { path: '/payouts', label: 'Payouts' },
+  { path: '/history', label: 'History' },
+  { path: '/compare', label: 'Compare' },
   { path: '/prop-firms', label: 'Prop Firms' },
   { path: '/owners', label: 'Owners' },
 ]

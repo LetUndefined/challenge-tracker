@@ -8,8 +8,18 @@ const openPositionsMap = ref<Record<string, OpenPositionInfo>>({})
 const lastTradeMap = ref<Record<string, string>>({})
 const tradeCountMap = ref<Record<string, number>>({})
 const streakMap = ref<Record<string, { direction: 'W' | 'L'; count: number } | null>>({})
+const dailyPnlMap = ref<Record<string, number>>({})
 const loading = ref(false)
 const error = ref<string | null>(null)
+
+function computeDailyPnl(trades: MetaCopierTrade[]): number {
+  const midnight = new Date()
+  midnight.setHours(0, 0, 0, 0)
+  const midnightMs = midnight.getTime()
+  return trades
+    .filter(t => t.close_time !== null && new Date(t.close_time).getTime() >= midnightMs)
+    .reduce((sum, t) => sum + (t.profit ?? 0), 0)
+}
 
 function computeStreak(trades: MetaCopierTrade[]): { direction: 'W' | 'L'; count: number } | null {
   const closed = trades
@@ -56,15 +66,16 @@ export function useMetaCopier() {
               })
               lastTime = sorted[0].close_time ?? sorted[0].open_time
             }
-            return { id: acc.id, lastTime, count: trades.length, streak: computeStreak(trades) }
+            return { id: acc.id, lastTime, count: trades.length, streak: computeStreak(trades), dailyPnl: computeDailyPnl(trades) }
           } catch {
-            return { id: acc.id, lastTime: '', count: 0, streak: null }
+            return { id: acc.id, lastTime: '', count: 0, streak: null, dailyPnl: 0 }
           }
         })
       )
       lastTradeMap.value = Object.fromEntries(tradeResults.map(r => [r.id, r.lastTime]))
       tradeCountMap.value = Object.fromEntries(tradeResults.map(r => [r.id, r.count]))
       streakMap.value = Object.fromEntries(tradeResults.map(r => [r.id, r.streak]))
+      dailyPnlMap.value = Object.fromEntries(tradeResults.map(r => [r.id, r.dailyPnl]))
     } catch (e: any) {
       error.value = e.message
       console.error('Failed to fetch MetaCopier accounts:', e)
@@ -101,6 +112,7 @@ export function useMetaCopier() {
     lastTradeMap,
     tradeCountMap,
     streakMap,
+    dailyPnlMap,
     loading,
     error,
     fetchAccounts,

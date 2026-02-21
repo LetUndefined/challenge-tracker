@@ -126,13 +126,14 @@ function formatLastTrade(ts: string | null): string {
           <th>Progress</th>
           <th>State</th>
           <th class="text-right">Trades</th>
+          <th class="text-right">Daily P&amp;L</th>
           <th>Last Trade</th>
           <th class="th-actions"></th>
         </tr>
       </thead>
       <tbody>
         <tr v-if="rows.length === 0">
-          <td colspan="15" class="empty-state">
+          <td colspan="16" class="empty-state">
             <div class="empty-inner">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -232,6 +233,9 @@ function formatLastTrade(ts: string | null): string {
               </div>
             </td>
             <td class="text-right mono">{{ row.trades_count }}</td>
+            <td class="text-right mono" :class="row.daily_pnl > 0 ? 'pnl-positive' : row.daily_pnl < 0 ? 'pnl-negative' : ''">
+              {{ row.daily_pnl !== 0 ? formatPnl(row.daily_pnl) : '—' }}
+            </td>
             <td class="text-ghost mono-sm">{{ formatLastTrade(row.last_trade) }}</td>
             <td>
               <div class="row-actions">
@@ -251,7 +255,7 @@ function formatLastTrade(ts: string | null): string {
           </tr>
           <!-- Expandable chart row -->
           <tr v-if="expandedId === row.id" class="chart-row">
-            <td colspan="15" class="chart-td">
+            <td colspan="16" class="chart-td">
               <ProgressChart
                 :snapshots="snapshotsCache[row.id] ?? []"
                 :starting-balance="row.starting_balance"

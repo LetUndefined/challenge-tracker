@@ -9,6 +9,8 @@ import PropFirmsView from './views/PropFirmsView.vue'
 import OwnersView from './views/OwnersView.vue'
 import AnalyticsView from './views/AnalyticsView.vue'
 import PayoutsView from './views/PayoutsView.vue'
+import HistoryView from './views/HistoryView.vue'
+import PropFirmCompareView from './views/PropFirmCompareView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -17,6 +19,8 @@ const router = createRouter({
     { path: '/notifications', component: NotificationsView },
     { path: '/analytics', component: AnalyticsView },
     { path: '/payouts', component: PayoutsView },
+    { path: '/history', component: HistoryView },
+    { path: '/compare', component: PropFirmCompareView },
     { path: '/prop-firms', component: PropFirmsView },
     { path: '/owners', component: OwnersView },
   ],
