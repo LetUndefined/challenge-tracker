@@ -74,23 +74,6 @@ function buildSuggestions() {
         notes: null,
         created_at: '',
       })
-    } else if (row.max_dd_pct !== null && row.progress < 0 && Math.abs(row.progress) >= row.max_dd_pct) {
-      s.push({
-        id: '',
-        challenge_id: row.id,
-        alias: row.alias,
-        prop_firm: row.prop_firm,
-        phase: row.phase,
-        outcome: 'Failed',
-        starting_balance: row.starting_balance,
-        final_balance: row.balance,
-        payout_received: 0,
-        started_at: row.started_at ?? null,
-        ended_at: new Date().toISOString().slice(0, 10),
-        duration_days: null,
-        notes: 'Max drawdown breached',
-        created_at: '',
-      })
     }
   }
   // Filter out already logged ones

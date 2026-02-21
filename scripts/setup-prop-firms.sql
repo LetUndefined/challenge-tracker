@@ -13,6 +13,7 @@ create table if not exists prop_firms (
 
   -- Challenge structure
   phases integer,              -- 1, 2, or 0 for instant funding
+  program_types text,          -- comma-separated: '1-step,2-step,instant' etc.
   instant_funding boolean default false,
   profit_target_p1 numeric,   -- % profit target phase 1
   profit_target_p2 numeric,   -- % profit target phase 2
@@ -71,3 +72,6 @@ create table if not exists prop_firms (
 
 alter table prop_firms enable row level security;
 create policy "Allow all" on prop_firms for all using (true);
+-- Add program_types column if the table was already created
+-- Run this in Supabase SQL editor if you already ran setup-prop-firms.sql before:
+alter table prop_firms add column if not exists program_types text;
