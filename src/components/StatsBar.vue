@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+import type { ComputedRef } from 'vue'
 import type { ChallengeRow } from '@/types'
 
 const props = defineProps<{
@@ -7,6 +8,13 @@ const props = defineProps<{
 }>()
 
 const nonMaster = computed(() => props.rows.filter(r => !r.is_master))
+
+const streak = computed(() => {
+  for (const r of props.rows) {
+    if (r.streak) return r.streak
+  }
+  return null
+})
 
 const connected    = computed(() => nonMaster.value.filter(r => r.state === 'Connected').length)
 const disconnected = computed(() => nonMaster.value.filter(r => r.state === 'Disconnected').length)
@@ -22,6 +30,63 @@ const avgProgress = computed(() => {
   if (!eligible.length) return null
   return Math.round(eligible.reduce((s, r) => s + r.progress, 0) / eligible.length * 10) / 10
 })
+
+// Phase funnel — always show full Phase N sequence (fill gaps with 0)
+const phaseFunnel = computed(() => {
+  const nonMasterRows = props.rows.filter(r => !r.is_master)
+  const counts: Record<string, number> = {}
+  for (const r of nonMasterRows) {
+    counts[r.phase] = (counts[r.phase] ?? 0) + 1
+  }
+
+  // Detect "Phase N" pattern and fill all from 1 to max (min 2)
+  const phaseNums = Object.keys(counts)
+    .map(p => p.match(/^Phase (\d+)$/i))
+    .filter(Boolean)
+    .map(m => parseInt(m![1]))
+  const maxPhase = Math.max(2, ...phaseNums)
+  for (let i = 1; i <= maxPhase; i++) {
+    const key = `Phase ${i}`
+    if (!(key in counts)) counts[key] = 0
+  }
+
+  return Object.entries(counts).sort(([a], [b]) => {
+    const na = a.match(/^Phase (\d+)$/i)
+    const nb = b.match(/^Phase (\d+)$/i)
+    if (na && nb) return parseInt(na[1]) - parseInt(nb[1])
+    if (na) return -1
+    if (nb) return 1
+    return a.localeCompare(b)
+  })
+})
+
+// Animated number — smoothly counts to new value on change
+function useAnimated(source: ComputedRef<number>, duration = 650) {
+  const display = ref(source.value)
+  let raf: number | null = null
+  watch(source, (next) => {
+    const from = display.value
+    const delta = next - from
+    if (Math.abs(delta) < 0.01) return
+    if (raf) cancelAnimationFrame(raf)
+    const t0 = performance.now()
+    function step(t: number) {
+      const p = Math.min((t - t0) / duration, 1)
+      const e = 1 - Math.pow(1 - p, 3) // ease-out cubic
+      display.value = from + delta * e
+      if (p < 1) raf = requestAnimationFrame(step)
+      else display.value = next
+    }
+    raf = requestAnimationFrame(step)
+  })
+  return display
+}
+
+const animBalance  = useAnimated(totalBalance)
+const animEquity   = useAnimated(totalEquity)
+const animDelta    = useAnimated(equityDelta)
+const animOpenPnl  = useAnimated(openPnl)
+const animCost     = useAnimated(totalCost)
 
 function fmt(v: number, compact = false): string {
   const abs = Math.abs(v)
@@ -63,7 +128,7 @@ function sign(v: number): string {
       <!-- BALANCE -->
       <div class="cell cell-wide">
         <div class="cell-label">TOTAL BALANCE</div>
-        <div class="cell-value cyan">{{ fmt(totalBalance, true) }}</div>
+        <div class="cell-value cyan">{{ fmt(animBalance, true) }}</div>
         <div class="cell-sub">
           <span class="sub-dim">{{ nonMaster.length }} account{{ nonMaster.length !== 1 ? 's' : '' }}</span>
         </div>
@@ -74,10 +139,10 @@ function sign(v: number): string {
       <!-- EQUITY -->
       <div class="cell cell-wide">
         <div class="cell-label">TOTAL EQUITY</div>
-        <div class="cell-value green">{{ fmt(totalEquity, true) }}</div>
+        <div class="cell-value green">{{ fmt(animEquity, true) }}</div>
         <div class="cell-sub">
           <span :class="equityDelta >= 0 ? 'sub-green' : 'sub-red'">
-            {{ sign(equityDelta) }}{{ fmt(equityDelta, true) }}
+            {{ sign(animDelta) }}{{ fmt(animDelta, true) }}
           </span>
           <span class="sub-dim"> vs balance</span>
         </div>
@@ -92,7 +157,7 @@ function sign(v: number): string {
           OPEN P&amp;L
         </div>
         <div class="cell-value" :class="openPnl >= 0 ? 'green' : 'red'">
-          {{ sign(openPnl) }}{{ fmt(openPnl, true) }}
+          {{ sign(animOpenPnl) }}{{ fmt(animOpenPnl, true) }}
         </div>
         <div class="cell-sub">
           <span class="sub-dim">live unrealized</span>
@@ -104,7 +169,7 @@ function sign(v: number): string {
       <!-- COST -->
       <div class="cell cell-wide">
         <div class="cell-label">TOTAL COST</div>
-        <div class="cell-value orange">{{ totalCost > 0 ? fmt(totalCost, true) : '—' }}</div>
+        <div class="cell-value orange">{{ animCost > 0 ? fmt(animCost, true) : '—' }}</div>
         <div class="cell-sub">
           <span class="sub-dim">invested</span>
         </div>
@@ -123,6 +188,42 @@ function sign(v: number): string {
         </div>
         <div class="cell-sub">
           <span class="sub-dim">{{ nonMaster.filter(r => r.target_pct > 0).length }} challenges</span>
+        </div>
+      </div>
+
+      <div class="divider" />
+
+      <!-- PHASES -->
+      <div class="cell">
+        <div class="cell-label">PHASES</div>
+        <div class="phase-funnel">
+          <div
+            v-for="([phase, count], i) in phaseFunnel"
+            :key="phase"
+            class="phase-item"
+          >
+            <span class="phase-label" :class="phase === 'Master' ? 'phase-master' : ''">{{ phase }}:</span>
+            <span class="phase-count" :class="phase === 'Master' ? 'phase-master' : 'phase-normal'">{{ count }}</span>
+          </div>
+        </div>
+        <div class="cell-sub">
+          <span class="sub-dim">{{ props.rows.length }} total accounts</span>
+        </div>
+      </div>
+
+      <div class="divider" />
+
+      <!-- STREAK -->
+      <div class="cell">
+        <div class="cell-label">STREAK</div>
+        <div class="cell-value" :class="streak === null ? 'dim' : streak.direction === 'W' ? 'green' : 'red'">
+          {{ streak === null ? '—' : streak.direction + streak.count }}
+        </div>
+        <div class="cell-sub">
+          <span v-if="streak" :class="streak.direction === 'W' ? 'sub-green' : 'sub-red'">
+            {{ streak.direction === 'W' ? 'win' : 'loss' }} streak
+          </span>
+          <span v-else class="sub-dim">no data</span>
         </div>
       </div>
 
@@ -329,12 +430,71 @@ function sign(v: number): string {
     border-bottom: none;
   }
 
+  .cell-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+
+  .cell-sub {
+    font-size: 11px;
+  }
+
   .cell-value {
-    font-size: 17px;
+    font-size: 19px;
   }
 
   .cell {
     padding: 11px 14px;
   }
+}
+
+/* ── Phase funnel ────────────────────────────────────── */
+.phase-funnel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 3px 0;
+}
+
+.phase-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.phase-arrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1;
+}
+
+.phase-count {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.phase-normal {
+  color: var(--text-primary);
+}
+
+.phase-master {
+  color: var(--cyan);
+}
+
+.phase-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.phase-label.phase-master {
+  color: var(--cyan);
 }
 </style>

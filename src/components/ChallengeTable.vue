@@ -44,17 +44,40 @@ function formatPnl(val: number): string {
 
 // Row danger coloring based on drawdown relative to max DD limit
 function ddClass(row: ChallengeRow): string {
-  if (row.is_master || row.progress >= 0) return ''
+  if (row.is_master) return ''
+
+  // Positive progress → color toward target
+  if (row.progress > 0 && row.target_pct > 0) {
+    const pct = row.progress / row.target_pct * 100
+    if (pct >= 100) return 'row-passed'
+    if (pct >= 75)  return 'row-close'
+    if (pct >= 50)  return 'row-halfway'
+    if (pct >= 25)  return 'row-started'
+    return ''
+  }
+
+  if (row.progress >= 0) return ''
+
+  // Negative progress → drawdown coloring
   if (row.max_dd_pct !== null && row.max_dd_pct > 0) {
     const ddUsed = Math.abs(row.progress) / row.max_dd_pct * 100
     if (ddUsed >= 80) return 'row-danger'
     if (ddUsed >= 50) return 'row-warn'
     return 'row-caution'
   }
-  // Fallback thresholds if no max_dd_pct set
   if (row.progress <= -5) return 'row-danger'
   if (row.progress <= -3) return 'row-warn'
   return 'row-caution'
+}
+
+function progressFillClass(row: ChallengeRow): string {
+  if (row.target_pct <= 0 || row.progress <= 0) return 'progress-fill-profit'
+  const pct = row.progress / row.target_pct * 100
+  if (pct >= 100) return 'progress-fill-profit fill-passed'
+  if (pct >= 75)  return 'progress-fill-profit fill-close'
+  if (pct >= 50)  return 'progress-fill-profit fill-halfway'
+  if (pct >= 25)  return 'progress-fill-profit fill-started'
+  return 'progress-fill-profit'
 }
 
 function pnlClass(val: number): string {
@@ -91,7 +114,6 @@ function formatLastTrade(ts: string | null): string {
       <thead>
         <tr>
           <th>Account</th>
-          <th>Owner</th>
           <th>Prop Firm</th>
           <th>Phase</th>
           <th>Platform</th>
@@ -104,14 +126,13 @@ function formatLastTrade(ts: string | null): string {
           <th>Progress</th>
           <th>State</th>
           <th class="text-right">Trades</th>
-          <th>Streak</th>
           <th>Last Trade</th>
           <th class="th-actions"></th>
         </tr>
       </thead>
       <tbody>
         <tr v-if="rows.length === 0">
-          <td colspan="17" class="empty-state">
+          <td colspan="15" class="empty-state">
             <div class="empty-inner">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -130,6 +151,7 @@ function formatLastTrade(ts: string | null): string {
               <div class="account-cell clickable" @click="toggleRow(row)" :title="expandedId === row.id ? 'Collapse chart' : 'Expand chart'">
                 <div class="account-name-row">
                   <span class="account-alias">{{ row.alias }}</span>
+                  <span v-if="row.open_positions.length > 0" class="live-trade-dot" title="Position open" />
                   <svg
                     class="chevron"
                     :class="{ 'chevron-open': expandedId === row.id }"
@@ -139,7 +161,6 @@ function formatLastTrade(ts: string | null): string {
                 <span class="account-login">{{ row.login_number }}</span>
               </div>
             </td>
-            <td class="text-secondary">{{ row.owner }}</td>
             <td>
               <span class="chip chip-firm">{{ row.prop_firm }}</span>
             </td>
@@ -186,9 +207,14 @@ function formatLastTrade(ts: string | null): string {
                   </div>
                   <div class="progress-center" />
                   <div class="progress-half profit-half">
+                    <template v-if="row.target_pct > 0">
+                      <div class="tick" style="left: 25%" />
+                      <div class="tick" style="left: 50%" />
+                      <div class="tick" style="left: 75%" />
+                    </template>
                     <div
                       v-if="row.progress > 0 && row.target_pct > 0"
-                      class="progress-fill-profit"
+                      :class="progressFillClass(row)"
                       :style="{ width: `${Math.min(row.progress / row.target_pct * 100, 100)}%` }"
                     />
                   </div>
@@ -196,6 +222,7 @@ function formatLastTrade(ts: string | null): string {
                 <span class="progress-text" :style="{ color: row.progress >= 0 ? 'var(--green)' : 'var(--red)' }">
                   {{ row.progress }}%
                 </span>
+                <span v-if="row.target_pct > 0 && row.progress >= row.target_pct" class="passed-chip">PASSED</span>
               </div>
             </td>
             <td>
@@ -205,16 +232,6 @@ function formatLastTrade(ts: string | null): string {
               </div>
             </td>
             <td class="text-right mono">{{ row.trades_count }}</td>
-            <td>
-              <span
-                v-if="row.streak"
-                class="streak-badge"
-                :class="row.streak.direction === 'W' ? 'streak-win' : 'streak-loss'"
-              >
-                {{ row.streak.direction }}{{ row.streak.count }}
-              </span>
-              <span v-else class="text-ghost">—</span>
-            </td>
             <td class="text-ghost mono-sm">{{ formatLastTrade(row.last_trade) }}</td>
             <td>
               <div class="row-actions">
@@ -234,7 +251,7 @@ function formatLastTrade(ts: string | null): string {
           </tr>
           <!-- Expandable chart row -->
           <tr v-if="expandedId === row.id" class="chart-row">
-            <td colspan="17" class="chart-td">
+            <td colspan="15" class="chart-td">
               <ProgressChart
                 :snapshots="snapshotsCache[row.id] ?? []"
                 :starting-balance="row.starting_balance"
@@ -268,6 +285,7 @@ function formatLastTrade(ts: string | null): string {
         <div class="card-account">
           <div class="account-name-row">
             <span class="account-alias">{{ row.alias }}</span>
+            <span v-if="row.open_positions.length > 0" class="live-trade-dot" title="Position open" />
             <svg
               class="chevron"
               :class="{ 'chevron-open': expandedId === row.id }"
@@ -298,14 +316,6 @@ function formatLastTrade(ts: string | null): string {
       <div class="card-chips">
         <span class="chip chip-firm">{{ row.prop_firm }}</span>
         <span class="chip" :class="row.phase === 'Master' ? 'chip-master' : 'chip-phase'">{{ row.phase }}</span>
-        <span class="card-owner">{{ row.owner }}</span>
-        <span
-          v-if="row.streak"
-          class="streak-badge"
-          :class="row.streak.direction === 'W' ? 'streak-win' : 'streak-loss'"
-        >
-          {{ row.streak.direction }}{{ row.streak.count }}
-        </span>
       </div>
 
       <div class="card-grid">
@@ -361,9 +371,14 @@ function formatLastTrade(ts: string | null): string {
           </div>
           <div class="progress-center" />
           <div class="progress-half profit-half">
+            <template v-if="row.target_pct > 0">
+              <div class="tick" style="left: 25%" />
+              <div class="tick" style="left: 50%" />
+              <div class="tick" style="left: 75%" />
+            </template>
             <div
               v-if="row.progress > 0 && row.target_pct > 0"
-              class="progress-fill-profit"
+              :class="progressFillClass(row)"
               :style="{ width: `${Math.min(row.progress / row.target_pct * 100, 100)}%` }"
             />
           </div>
@@ -371,6 +386,7 @@ function formatLastTrade(ts: string | null): string {
         <span class="progress-text" :style="{ color: row.progress >= 0 ? 'var(--green)' : 'var(--red)' }">
           {{ row.progress }}%
         </span>
+        <span v-if="row.target_pct > 0 && row.progress >= row.target_pct" class="passed-chip">PASSED</span>
       </div>
 
       <!-- Mobile chart dropdown -->
@@ -486,6 +502,18 @@ function formatLastTrade(ts: string | null): string {
   font-size: 12px;
 }
 
+/* ─── Live trade dot ─── */
+.live-trade-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  flex-shrink: 0;
+  animation: pulse-live 2s ease-in-out infinite;
+}
+
 /* ─── Account cell ─── */
 .account-cell {
   display: flex;
@@ -571,11 +599,66 @@ function formatLastTrade(ts: string | null): string {
 }
 
 .progress-fill-profit {
+  position: relative;
   height: 100%;
   background: var(--green);
   box-shadow: 0 0 8px var(--green);
   border-radius: 0 3px 3px 0;
   transition: width 0.4s var(--ease-out);
+}
+
+/* Glow intensifies by stage */
+.fill-started {
+  box-shadow: 0 0 8px rgba(0, 230, 118, 0.5);
+}
+.fill-halfway {
+  box-shadow: 0 0 12px rgba(0, 230, 118, 0.7);
+}
+.fill-close {
+  box-shadow: 0 0 16px rgba(0, 230, 118, 0.9), 0 0 4px var(--green);
+}
+.fill-passed {
+  background: var(--green);
+  box-shadow: 0 0 20px var(--green), 0 0 6px var(--green);
+  animation: fill-glow 2s ease-in-out infinite;
+}
+
+@keyframes fill-glow {
+  0%, 100% { box-shadow: 0 0 20px var(--green), 0 0 6px var(--green); }
+  50%       { box-shadow: 0 0 28px var(--green), 0 0 10px var(--green); }
+}
+
+/* Milestone ticks on profit half */
+.tick {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.18);
+  z-index: 1;
+}
+
+/* PASSED chip */
+.passed-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: rgba(0, 230, 118, 0.15);
+  color: var(--green);
+  border: 1px solid rgba(0, 230, 118, 0.4);
+  white-space: nowrap;
+  animation: passed-badge-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes passed-badge-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.7; }
 }
 
 .progress-fill-loss {
@@ -663,6 +746,33 @@ function formatLastTrade(ts: string | null): string {
 @keyframes danger-pulse {
   0%, 100% { background: rgba(255, 71, 87, 0.07); }
   50%       { background: rgba(255, 71, 87, 0.13); }
+}
+
+/* ─── Progress-toward-target row coloring ─── */
+.row-started {
+  background: rgba(0, 230, 118, 0.05) !important;
+  border-left: 3px solid rgba(0, 230, 118, 0.4) !important;
+}
+
+.row-halfway {
+  background: rgba(0, 230, 118, 0.09) !important;
+  border-left: 3px solid rgba(0, 230, 118, 0.6) !important;
+}
+
+.row-close {
+  background: rgba(0, 230, 118, 0.14) !important;
+  border-left: 3px solid rgba(0, 230, 118, 0.85) !important;
+}
+
+.row-passed {
+  background: rgba(0, 230, 118, 0.18) !important;
+  border-left: 3px solid var(--green) !important;
+  animation: passed-pulse 3s ease-in-out infinite !important;
+}
+
+@keyframes passed-pulse {
+  0%, 100% { background: rgba(0, 230, 118, 0.18); }
+  50%       { background: rgba(0, 230, 118, 0.26); }
 }
 
 /* ─── Streak badge ─── */
@@ -773,11 +883,34 @@ function formatLastTrade(ts: string | null): string {
   color: var(--red);
 }
 
-/* Mobile DD coloring — override border since cards use border shorthand */
 @media (max-width: 768px) {
-  .challenge-card.row-caution { border-color: rgba(255, 159, 67, 0.4); }
-  .challenge-card.row-warn    { border-color: var(--orange); }
-  .challenge-card.row-danger  { border-color: var(--red); }
+  .account-alias {
+    font-size: 16px;
+  }
+
+  .account-login {
+    font-size: 11px;
+  }
+
+  .chip {
+    font-size: 12px;
+    padding: 3px 9px;
+  }
+
+  .state-cell {
+    font-size: 13px;
+  }
+}
+
+/* Mobile coloring — override border since cards use border shorthand */
+@media (max-width: 768px) {
+  .challenge-card.row-caution  { border-color: rgba(255, 159, 67, 0.4); }
+  .challenge-card.row-warn     { border-color: var(--orange); }
+  .challenge-card.row-danger   { border-color: var(--red); }
+  .challenge-card.row-started  { border-color: rgba(0, 230, 118, 0.2); }
+  .challenge-card.row-halfway  { border-color: rgba(0, 230, 118, 0.35); }
+  .challenge-card.row-close    { border-color: rgba(0, 230, 118, 0.6); }
+  .challenge-card.row-passed   { border-color: var(--green); }
 }
 
 /* ─── Mobile cards (hidden on desktop) ─── */
@@ -793,7 +926,7 @@ function formatLastTrade(ts: string | null): string {
   .mobile-cards {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
   }
 
   .empty-state-mobile {
@@ -814,7 +947,7 @@ function formatLastTrade(ts: string | null): string {
     background: var(--surface);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
-    padding: 14px;
+    padding: 16px;
     animation: fadeInUp 0.35s var(--ease-out) both;
   }
 
@@ -822,14 +955,14 @@ function formatLastTrade(ts: string | null): string {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    margin-bottom: 10px;
+    margin-bottom: 14px;
     cursor: pointer;
   }
 
   .card-account {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 3px;
   }
 
   .card-header-right {
@@ -841,8 +974,8 @@ function formatLastTrade(ts: string | null): string {
   .card-chips {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-bottom: 12px;
+    gap: 8px;
+    margin-bottom: 14px;
     flex-wrap: wrap;
   }
 
@@ -853,28 +986,28 @@ function formatLastTrade(ts: string | null): string {
 
   .card-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin-bottom: 10px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 14px;
   }
 
   .card-stat {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
   }
 
   .card-label {
     font-family: var(--font-mono);
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
   }
 
   .card-value {
-    font-size: 13px;
+    font-size: 15px;
     color: var(--text-primary);
   }
 
@@ -886,42 +1019,55 @@ function formatLastTrade(ts: string | null): string {
   .card-positions {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 8px 0;
+    gap: 6px;
+    padding: 12px 0;
     border-top: 1px solid var(--border-subtle);
-    margin-bottom: 8px;
+    margin-bottom: 12px;
   }
 
   .card-pos-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .card-pos-pnl {
     font-weight: 600;
-    min-width: 70px;
+    min-width: 80px;
   }
 
   .card-progress {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding-top: 8px;
+    gap: 12px;
+    padding-top: 12px;
     border-top: 1px solid var(--border-subtle);
   }
 
   .card-progress .progress-bidir {
     flex: 1;
+    height: 8px;
+  }
+
+  .card-progress .progress-half {
+    height: 8px;
+  }
+
+  .card-progress .progress-center {
+    height: 14px;
+  }
+
+  .card-progress .progress-text {
+    font-size: 14px;
   }
 
   .card-chart {
-    margin-top: 8px;
+    margin-top: 12px;
     border-top: 1px solid var(--border-subtle);
     border-left: 2px solid var(--accent);
-    margin-left: -14px;
+    margin-left: -16px;
     padding-left: 0;
     animation: slideDown 0.25s var(--ease-out);
   }
