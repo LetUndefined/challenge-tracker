@@ -15,7 +15,6 @@ const navItems = [
   { path: '/history', label: 'History' },
   { path: '/compare', label: 'Compare' },
   { path: '/prop-firms', label: 'Prop Firms' },
-  { path: '/owners', label: 'Owners' },
 ]
 </script>
 

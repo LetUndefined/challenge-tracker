@@ -122,270 +122,321 @@ onMounted(() => {
 <template>
   <div class="payouts-view">
 
-    <!-- ── Page Header ─────────────────────────────────── -->
-    <div class="page-header">
-      <div class="eyebrow">// PAYOUT LEDGER</div>
-      <div class="header-row">
-        <h1>Payouts</h1>
-        <div v-if="loading" class="refresh-indicator">
-          <div class="refresh-spinner" />
-          <span>Loading</span>
-        </div>
-      </div>
-    </div>
+    <!-- ── Banner Header ───────────────────────────────── -->
+    <header class="page-header">
+      <div class="header-grid" aria-hidden="true" />
 
-    <!-- ── Stats Strip ─────────────────────────────────── -->
-    <div class="strip-wrap">
-      <div class="scan-line" />
-      <div class="strip">
-
-        <div class="cell cell-wide">
-          <div class="cell-label">TOTAL RECEIVED</div>
-          <div class="cell-value green">{{ fmt(totalReceived) }}</div>
-          <div class="cell-sub">
-            <span class="sub-dim">{{ receivedCount }} payout{{ receivedCount !== 1 ? 's' : '' }}</span>
+      <div class="header-inner">
+        <div class="header-left">
+          <div class="header-tag">
+            <span class="tag-mark">▸</span>
+            CHALLENGE TRACKER
           </div>
+          <h1 class="page-title">
+            Payout<br />
+            <span class="title-accent">Ledger</span>
+          </h1>
         </div>
 
-        <div class="divider" />
-
-        <div class="cell cell-wide">
-          <div class="cell-label">
-            <span v-if="pendingCount > 0" class="live-pip" />
-            PENDING
+        <div class="header-right">
+          <div class="hdr-stat-block">
+            <div class="hdr-stat-row">
+              <span class="hdr-big-num green">{{ fmt(totalReceived) }}</span>
+            </div>
+            <div class="hdr-stat-label">RECEIVED</div>
           </div>
-          <div class="cell-value" :class="pendingCount > 0 ? 'amber' : 'dim'">
-            {{ fmt(totalPending) }}
+
+          <div class="hdr-divider" />
+
+          <div class="hdr-stat-block">
+            <div class="hdr-stat-row">
+              <span v-if="pendingCount > 0" class="hdr-live-dot amber-dot" />
+              <span class="hdr-big-num" :class="pendingCount > 0 ? 'amber' : 'dim'">{{ fmt(totalPending) }}</span>
+            </div>
+            <div class="hdr-stat-label">PENDING</div>
           </div>
-          <div class="cell-sub">
-            <span class="sub-dim">{{ pendingCount }} awaiting</span>
-          </div>
-        </div>
 
-        <div class="divider" />
+          <div class="hdr-divider" />
 
-        <div class="cell cell-wide">
-          <div class="cell-label">NET P&amp;L</div>
-          <div class="cell-value" :class="netPnl >= 0 ? 'green' : 'red'">
-            {{ netPnl >= 0 ? '+' : '-' }}{{ fmt(netPnl) }}
-          </div>
-          <div class="cell-sub">
-            <span class="sub-dim">received − invested</span>
-          </div>
-        </div>
-
-        <div class="divider" />
-
-        <div class="cell">
-          <div class="cell-label">ROI</div>
-          <div class="cell-value" :class="roi >= 0 ? 'green' : 'red'">
-            {{ roi >= 0 ? '+' : '' }}{{ Math.round(roi * 10) / 10 }}%
-          </div>
-          <div class="cell-sub">
-            <span class="sub-dim">on capital</span>
-          </div>
-        </div>
-
-        <div class="divider" />
-
-        <div class="cell">
-          <div class="cell-label">TOTAL PAYOUTS</div>
-          <div class="cell-value accent">{{ payouts.length }}</div>
-          <div class="cell-sub">
-            <span v-if="rejectedCount > 0" class="sub-red">{{ rejectedCount }} rejected</span>
-            <span v-else class="sub-dim">all time</span>
-          </div>
-        </div>
-
-        <div class="divider" />
-
-        <div class="cell cell-wide">
-          <div class="cell-label">TOTAL INVESTED</div>
-          <div class="cell-value orange">{{ totalInvested > 0 ? fmt(totalInvested) : '—' }}</div>
-          <div class="cell-sub">
-            <span class="sub-dim">challenge costs</span>
-          </div>
-        </div>
-
-      </div>
-      <div class="ticker-line" />
-    </div>
-
-    <!-- ── Controls ────────────────────────────────────── -->
-    <div class="controls-row">
-      <div class="filter-chips">
-        <button class="chip-btn" :class="{ active: statusFilter === 'all' }" @click="statusFilter = 'all'">
-          ALL <span class="chip-count">{{ payouts.length }}</span>
-        </button>
-        <button class="chip-btn chip-pending" :class="{ active: statusFilter === 'pending' }" @click="statusFilter = 'pending'">
-          PENDING <span class="chip-count">{{ pendingCount }}</span>
-        </button>
-        <button class="chip-btn chip-received" :class="{ active: statusFilter === 'received' }" @click="statusFilter = 'received'">
-          RECEIVED <span class="chip-count">{{ receivedCount }}</span>
-        </button>
-        <button class="chip-btn chip-rejected" :class="{ active: statusFilter === 'rejected' }" @click="statusFilter = 'rejected'">
-          REJECTED <span class="chip-count">{{ rejectedCount }}</span>
-        </button>
-      </div>
-      <button class="btn-add" @click="showAddModal = true">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M12 5v14M5 12h14"/>
-        </svg>
-        Log Payout
-      </button>
-    </div>
-
-    <!-- ── Ledger Table (desktop) ──────────────────────── -->
-    <div class="table-wrapper desktop-table">
-      <table class="ledger-table">
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>Challenge</th>
-            <th class="text-right">Amount</th>
-            <th>Requested</th>
-            <th>Received</th>
-            <th>Notes</th>
-            <th class="th-actions" />
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="filteredPayouts.length === 0">
-            <td colspan="7" class="empty-state">
-              <div class="empty-inner">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.25">
-                  <rect x="2" y="5" width="20" height="14" rx="2"/>
-                  <path d="M2 10h20M6 15h4M14 15h4"/>
-                </svg>
-                <span>{{ statusFilter === 'all' ? 'No payouts logged yet.' : `No ${statusFilter} payouts.` }}</span>
-                <button v-if="statusFilter === 'all'" class="btn-add-empty" @click="showAddModal = true">
-                  Log your first payout
-                </button>
-              </div>
-            </td>
-          </tr>
-          <tr
-            v-for="(payout, i) in filteredPayouts"
-            :key="payout.id"
-            :class="['payout-row', `row-${payout.status}`]"
-            :style="{ animationDelay: `${i * 30}ms` }"
-          >
-            <td>
-              <div class="status-badge" :class="`status-${payout.status}`">
-                <span class="status-dot" :class="`dot-${payout.status}`" />
-                <span>{{ payout.status.toUpperCase() }}</span>
-              </div>
-            </td>
-            <td>
-              <div class="challenge-cell">
-                <span class="ch-alias">{{ getChallenge(payout.challenge_id)?.alias || '—' }}</span>
-                <span v-if="getChallenge(payout.challenge_id)?.prop_firm" class="ch-firm">
-                  {{ getChallenge(payout.challenge_id)?.prop_firm }}
-                </span>
-              </div>
-            </td>
-            <td class="text-right">
-              <span class="amount" :class="`amount-${payout.status}`">
-                {{ fmt(payout.amount) }}
+          <div class="hdr-stat-block hdr-accent">
+            <div class="hdr-stat-row">
+              <span class="hdr-big-num" :class="netPnl >= 0 ? 'green' : 'red'">
+                {{ netPnl >= 0 ? '+' : '-' }}{{ fmt(Math.abs(netPnl)) }}
               </span>
-            </td>
-            <td>
-              <div class="date-cell">
-                <span class="date-main">{{ fmtDate(payout.requested_at) }}</span>
-                <span class="date-rel">{{ fmtRelative(payout.requested_at) }}</span>
-              </div>
-            </td>
-            <td>
-              <span v-if="payout.received_at" class="date-main">{{ fmtDate(payout.received_at) }}</span>
-              <span v-else class="text-ghost">—</span>
-            </td>
-            <td class="notes-td">
-              <span v-if="payout.notes" class="notes-text" :title="payout.notes">{{ payout.notes }}</span>
-              <span v-else class="text-ghost">—</span>
-            </td>
-            <td>
-              <div class="row-actions">
-                <button
-                  v-if="payout.status === 'pending'"
-                  class="btn-receive"
-                  title="Mark as received"
-                  @click="handleMarkReceived(payout)"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="M20 6L9 17l-5-5"/>
-                  </svg>
-                </button>
-                <button class="btn-delete" title="Remove" @click="handleDelete(payout.id)">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 6 6 18M6 6l12 12"/>
-                  </svg>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            </div>
+            <div class="hdr-stat-label">NET P&amp;L</div>
+          </div>
+        </div>
+      </div>
 
-    <!-- ── Mobile Cards ────────────────────────────────── -->
-    <div class="mobile-cards">
-      <div v-if="filteredPayouts.length === 0" class="empty-state-mobile">
-        <span>{{ statusFilter === 'all' ? 'No payouts logged yet.' : `No ${statusFilter} payouts.` }}</span>
-        <button v-if="statusFilter === 'all'" class="btn-add-empty" @click="showAddModal = true">
-          Log your first payout
+      <!-- Loading bar -->
+      <div v-if="loading" class="loading-bar">
+        <div class="loading-progress" />
+      </div>
+    </header>
+
+    <!-- ── Page body ───────────────────────────────────── -->
+    <div class="page-body">
+
+      <!-- ── Stats Strip ──────────────────────────────── -->
+      <div class="strip-wrap">
+        <div class="scan-line" />
+        <div class="strip">
+
+          <div class="cell">
+            <div class="cell-label">ROI</div>
+            <div class="cell-value" :class="roi >= 0 ? 'green' : 'red'">
+              {{ roi >= 0 ? '+' : '' }}{{ Math.round(roi * 10) / 10 }}%
+            </div>
+            <div class="cell-sub">
+              <span class="sub-dim">on capital</span>
+            </div>
+          </div>
+
+          <div class="divider" />
+
+          <div class="cell">
+            <div class="cell-label">TOTAL PAYOUTS</div>
+            <div class="cell-value accent">{{ payouts.length }}</div>
+            <div class="cell-sub">
+              <span v-if="rejectedCount > 0" class="sub-red">{{ rejectedCount }} rejected</span>
+              <span v-else class="sub-dim">all time</span>
+            </div>
+          </div>
+
+          <div class="divider" />
+
+          <div class="cell cell-wide">
+            <div class="cell-label">TOTAL INVESTED</div>
+            <div class="cell-value orange">{{ totalInvested > 0 ? fmt(totalInvested) : '—' }}</div>
+            <div class="cell-sub">
+              <span class="sub-dim">challenge costs</span>
+            </div>
+          </div>
+
+          <div class="divider" />
+
+          <div class="cell">
+            <div class="cell-label">RECEIVED</div>
+            <div class="cell-value green">{{ receivedCount }}</div>
+            <div class="cell-sub">
+              <span class="sub-dim">confirmed</span>
+            </div>
+          </div>
+
+          <div class="divider" />
+
+          <div class="cell">
+            <div class="cell-label">
+              <span v-if="pendingCount > 0" class="live-pip" />
+              PENDING
+            </div>
+            <div class="cell-value" :class="pendingCount > 0 ? 'amber' : 'dim'">{{ pendingCount }}</div>
+            <div class="cell-sub">
+              <span class="sub-dim">awaiting</span>
+            </div>
+          </div>
+
+        </div>
+        <div class="ticker-line" />
+      </div>
+
+      <!-- ── Command Bar ──────────────────────────────── -->
+      <div class="cmd-bar">
+        <div class="bar-sep" />
+
+        <!-- Status filter chips -->
+        <div class="filter-group">
+          <span class="filter-key">STATUS</span>
+          <div class="chips">
+            <button
+              :class="['chip', statusFilter === 'all' && 'chip-active']"
+              @click="statusFilter = 'all'"
+            >All <span class="chip-count">{{ payouts.length }}</span></button>
+            <button
+              :class="['chip chip-amber', statusFilter === 'pending' && 'chip-active']"
+              @click="statusFilter = statusFilter === 'pending' ? 'all' : 'pending'"
+            >
+              <span class="status-pip pip-pending" />Pending <span class="chip-count">{{ pendingCount }}</span>
+            </button>
+            <button
+              :class="['chip chip-green', statusFilter === 'received' && 'chip-active']"
+              @click="statusFilter = statusFilter === 'received' ? 'all' : 'received'"
+            >
+              <span class="status-pip pip-received" />Received <span class="chip-count">{{ receivedCount }}</span>
+            </button>
+            <button
+              :class="['chip chip-red', statusFilter === 'rejected' && 'chip-active']"
+              @click="statusFilter = statusFilter === 'rejected' ? 'all' : 'rejected'"
+            >
+              Rejected <span class="chip-count">{{ rejectedCount }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="bar-grow" />
+
+        <!-- Log Payout button -->
+        <button class="btn-add" @click="showAddModal = true">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          Log Payout
         </button>
       </div>
-      <div
-        v-for="(payout, i) in filteredPayouts"
-        :key="payout.id"
-        :class="['payout-card', `card-${payout.status}`]"
-        :style="{ animationDelay: `${i * 40}ms` }"
-      >
-        <div class="card-top">
-          <div class="status-badge" :class="`status-${payout.status}`">
-            <span class="status-dot" :class="`dot-${payout.status}`" />
-            <span>{{ payout.status.toUpperCase() }}</span>
-          </div>
-          <span class="amount" :class="`amount-${payout.status}`">{{ fmt(payout.amount) }}</span>
-        </div>
-        <div class="card-challenge">
-          <span class="ch-alias">{{ getChallenge(payout.challenge_id)?.alias || '—' }}</span>
-          <span v-if="getChallenge(payout.challenge_id)?.prop_firm" class="ch-firm">
-            {{ getChallenge(payout.challenge_id)?.prop_firm }}
-          </span>
-        </div>
-        <div class="card-dates">
-          <div class="card-date-item">
-            <span class="card-date-label">REQUESTED</span>
-            <span class="date-main">{{ fmtDate(payout.requested_at) }}</span>
-            <span class="date-rel">{{ fmtRelative(payout.requested_at) }}</span>
-          </div>
-          <div v-if="payout.received_at" class="card-date-item">
-            <span class="card-date-label">RECEIVED</span>
-            <span class="date-main">{{ fmtDate(payout.received_at) }}</span>
-          </div>
-        </div>
-        <div v-if="payout.notes" class="card-notes">{{ payout.notes }}</div>
-        <div class="card-actions">
-          <button
-            v-if="payout.status === 'pending'"
-            class="btn-receive-full"
-            @click="handleMarkReceived(payout)"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M20 6L9 17l-5-5"/>
-            </svg>
-            Mark Received
+
+      <!-- ── Ledger Table (desktop) ───────────────────── -->
+      <div class="table-wrapper desktop-table">
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Challenge</th>
+              <th class="text-right">Amount</th>
+              <th>Requested</th>
+              <th>Received</th>
+              <th>Notes</th>
+              <th class="th-actions" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="filteredPayouts.length === 0">
+              <td colspan="7" class="empty-state">
+                <div class="empty-inner">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.25">
+                    <rect x="2" y="5" width="20" height="14" rx="2"/>
+                    <path d="M2 10h20M6 15h4M14 15h4"/>
+                  </svg>
+                  <span>{{ statusFilter === 'all' ? 'No payouts logged yet.' : `No ${statusFilter} payouts.` }}</span>
+                  <button v-if="statusFilter === 'all'" class="btn-add-empty" @click="showAddModal = true">
+                    Log your first payout
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr
+              v-for="(payout, i) in filteredPayouts"
+              :key="payout.id"
+              :class="['payout-row', `row-${payout.status}`]"
+              :style="{ animationDelay: `${i * 30}ms` }"
+            >
+              <td>
+                <div class="status-badge" :class="`status-${payout.status}`">
+                  <span class="status-dot" :class="`dot-${payout.status}`" />
+                  <span>{{ payout.status.toUpperCase() }}</span>
+                </div>
+              </td>
+              <td>
+                <div class="challenge-cell">
+                  <span class="ch-alias">{{ getChallenge(payout.challenge_id)?.alias || '—' }}</span>
+                  <span v-if="getChallenge(payout.challenge_id)?.prop_firm" class="ch-firm">
+                    {{ getChallenge(payout.challenge_id)?.prop_firm }}
+                  </span>
+                </div>
+              </td>
+              <td class="text-right">
+                <span class="amount" :class="`amount-${payout.status}`">
+                  {{ fmt(payout.amount) }}
+                </span>
+              </td>
+              <td>
+                <div class="date-cell">
+                  <span class="date-main">{{ fmtDate(payout.requested_at) }}</span>
+                  <span class="date-rel">{{ fmtRelative(payout.requested_at) }}</span>
+                </div>
+              </td>
+              <td>
+                <span v-if="payout.received_at" class="date-main">{{ fmtDate(payout.received_at) }}</span>
+                <span v-else class="text-ghost">—</span>
+              </td>
+              <td class="notes-td">
+                <span v-if="payout.notes" class="notes-text" :title="payout.notes">{{ payout.notes }}</span>
+                <span v-else class="text-ghost">—</span>
+              </td>
+              <td>
+                <div class="row-actions">
+                  <button
+                    v-if="payout.status === 'pending'"
+                    class="btn-receive"
+                    title="Mark as received"
+                    @click="handleMarkReceived(payout)"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                  </button>
+                  <button class="btn-delete" title="Remove" @click="handleDelete(payout.id)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── Mobile Cards ─────────────────────────────── -->
+      <div class="mobile-cards">
+        <div v-if="filteredPayouts.length === 0" class="empty-state-mobile">
+          <span>{{ statusFilter === 'all' ? 'No payouts logged yet.' : `No ${statusFilter} payouts.` }}</span>
+          <button v-if="statusFilter === 'all'" class="btn-add-empty" @click="showAddModal = true">
+            Log your first payout
           </button>
-          <button class="btn-delete-sm" @click="handleDelete(payout.id)">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6 6 18M6 6l12 12"/>
-            </svg>
-          </button>
+        </div>
+        <div
+          v-for="(payout, i) in filteredPayouts"
+          :key="payout.id"
+          :class="['payout-card', `card-${payout.status}`]"
+          :style="{ animationDelay: `${i * 40}ms` }"
+        >
+          <div class="card-top">
+            <div class="status-badge" :class="`status-${payout.status}`">
+              <span class="status-dot" :class="`dot-${payout.status}`" />
+              <span>{{ payout.status.toUpperCase() }}</span>
+            </div>
+            <span class="amount" :class="`amount-${payout.status}`">{{ fmt(payout.amount) }}</span>
+          </div>
+          <div class="card-challenge">
+            <span class="ch-alias">{{ getChallenge(payout.challenge_id)?.alias || '—' }}</span>
+            <span v-if="getChallenge(payout.challenge_id)?.prop_firm" class="ch-firm">
+              {{ getChallenge(payout.challenge_id)?.prop_firm }}
+            </span>
+          </div>
+          <div class="card-dates">
+            <div class="card-date-item">
+              <span class="card-date-label">REQUESTED</span>
+              <span class="date-main">{{ fmtDate(payout.requested_at) }}</span>
+              <span class="date-rel">{{ fmtRelative(payout.requested_at) }}</span>
+            </div>
+            <div v-if="payout.received_at" class="card-date-item">
+              <span class="card-date-label">RECEIVED</span>
+              <span class="date-main">{{ fmtDate(payout.received_at) }}</span>
+            </div>
+          </div>
+          <div v-if="payout.notes" class="card-notes">{{ payout.notes }}</div>
+          <div class="card-actions">
+            <button
+              v-if="payout.status === 'pending'"
+              class="btn-receive-full"
+              @click="handleMarkReceived(payout)"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              Mark Received
+            </button>
+            <button class="btn-delete-sm" @click="handleDelete(payout.id)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6 6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
 
+    </div><!-- /.page-body -->
   </div>
 
   <!-- ── Add Payout Modal ────────────────────────────────── -->
@@ -476,67 +527,194 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* ── Page ──────────────────────────────────────────────── */
+/* ── View ──────────────────────────────────────────────── */
 .payouts-view {
-  padding: 24px 28px;
+  padding: 0;
   max-width: 1440px;
   margin: 0 auto;
   animation: fadeInUp 0.35s var(--ease-out);
 }
 
-/* ── Header ────────────────────────────────────────────── */
+/* ── Banner Header ─────────────────────────────────────── */
 .page-header {
-  margin-bottom: 4px;
-}
-
-.eyebrow {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: var(--accent);
-  opacity: 0.7;
-  margin-bottom: 2px;
-}
-
-.header-row {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
+  gap: 0;
+  padding: 32px 28px 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow: hidden;
 }
 
-.header-row h1 {
-  font-family: var(--font-ui);
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
+.header-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
 }
 
-.refresh-indicator {
+.header-grid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    var(--surface) 0%,
+    transparent 20%,
+    transparent 70%,
+    var(--surface) 100%
+  );
+}
+
+.header-inner {
+  position: relative;
   display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  z-index: 1;
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.header-tag {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.tag-mark { font-size: 11px; opacity: 0.8; }
+
+.page-title {
+  font-family: var(--font-ui);
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.title-accent { color: var(--accent); }
+
+/* Header right stats card */
+.header-right {
+  display: flex;
+  align-items: flex-end;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.hdr-stat-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 14px 18px;
+}
+
+.hdr-accent {
+  background: var(--accent-muted);
+  border-left: 1px solid rgba(240, 180, 41, 0.15);
+}
+
+.hdr-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.hdr-stat-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   color: var(--text-tertiary);
+  white-space: nowrap;
 }
 
-.refresh-spinner {
-  width: 12px;
-  height: 12px;
-  border: 1.5px solid var(--border);
-  border-top-color: var(--accent);
+.hdr-big-num {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+}
+
+.hdr-big-num.green  { color: var(--green); }
+.hdr-big-num.red    { color: var(--red); }
+.hdr-big-num.amber  { color: var(--accent); }
+.hdr-big-num.dim    { color: var(--text-tertiary); }
+
+.hdr-divider {
+  width: 1px;
+  background: var(--border-subtle);
+  align-self: stretch;
+}
+
+.hdr-live-dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+  animation: pulse-live 2.5s ease-in-out infinite;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+.amber-dot {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
 
-/* ── Stats Strip (mirrors StatsBar) ────────────────────── */
+/* Loading bar */
+.loading-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--border-subtle);
+  overflow: hidden;
+  z-index: 1;
+}
+
+.loading-progress {
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: loading-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes loading-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/* ── Page body ─────────────────────────────────────────── */
+.page-body {
+  padding: 0 28px 28px;
+}
+
+/* ── Stats Strip ───────────────────────────────────────── */
 .strip-wrap {
   position: relative;
-  margin: 14px 0;
+  margin: 20px 0 14px;
 }
 
 .scan-line {
@@ -554,6 +732,8 @@ onMounted(() => {
   50%  { background-position: 100% 0;  opacity: 0.6; }
   100% { background-position: -100% 0; opacity: 0.3; }
 }
+
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .strip {
   display: flex;
@@ -641,76 +821,133 @@ onMounted(() => {
   animation: pulse-live 2s ease-in-out infinite;
 }
 
-/* ── Controls ──────────────────────────────────────────── */
-.controls-row {
+/* ── Command Bar ───────────────────────────────────────── */
+.cmd-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-
-.filter-chips {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.chip-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
+  gap: 0;
+  margin-bottom: 14px;
   background: var(--surface);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition: all 0.15s;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  height: 46px;
 }
 
-.chip-btn:hover { color: var(--text-secondary); border-color: var(--border); }
-.chip-btn.active { color: var(--text-primary); border-color: var(--accent); background: var(--accent-muted); }
+.bar-sep {
+  width: 1px;
+  height: 100%;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+}
 
-.chip-btn.chip-pending.active  { border-color: var(--accent);  background: var(--accent-muted); color: var(--accent); }
-.chip-btn.chip-received.active { border-color: var(--green);   background: var(--green-muted);  color: var(--green); }
-.chip-btn.chip-rejected.active { border-color: var(--red);     background: var(--red-muted);    color: var(--red); }
+.bar-grow { flex: 1; }
 
-.chip-count {
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+.filter-key {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chip {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  background: var(--border);
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: 700;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
   line-height: 1;
+  height: 26px;
 }
+
+.chip:hover {
+  border-color: var(--border);
+  color: var(--text-secondary);
+  background: var(--surface-hover);
+}
+
+.chip-active {
+  background: var(--accent-muted) !important;
+  border-color: rgba(240, 180, 41, 0.25) !important;
+  color: var(--accent) !important;
+}
+
+.chip-green.chip-active {
+  background: var(--green-muted) !important;
+  border-color: rgba(0, 212, 170, 0.25) !important;
+  color: var(--green) !important;
+}
+
+.chip-amber.chip-active {
+  background: var(--accent-muted) !important;
+  border-color: rgba(240, 180, 41, 0.25) !important;
+  color: var(--accent) !important;
+}
+
+.chip-red.chip-active {
+  background: var(--red-muted) !important;
+  border-color: rgba(255, 71, 87, 0.25) !important;
+  color: var(--red) !important;
+}
+
+.chip-count {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.status-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pip-pending  { background: var(--accent); animation: pulse-live 2s ease-in-out infinite; }
+.pip-received { background: var(--green); }
 
 .btn-add {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 7px 16px;
+  padding: 0 20px;
+  height: 100%;
   background: var(--accent);
-  border: none;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
   color: var(--bg);
+  border: none;
+  border-left: 1px solid rgba(240, 180, 41, 0.3);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
   white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s;
 }
 
 .btn-add:hover { background: var(--accent-bright); }
@@ -760,7 +997,6 @@ onMounted(() => {
 .payout-row:last-child td { border-bottom: none; }
 .payout-row:hover { background: var(--surface-hover); }
 
-/* Status row tints + left border */
 .row-pending  { border-left: 2px solid var(--accent); }
 .row-received { border-left: 2px solid var(--green); }
 .row-rejected { border-left: 2px solid var(--red); }
@@ -1061,7 +1297,6 @@ onMounted(() => {
 }
 
 .form-textarea { resize: vertical; min-height: 56px; }
-
 .form-select option { background: var(--bg); }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
@@ -1114,7 +1349,23 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .modal-enter-active .modal, .modal-leave-active .modal { transition: transform 0.2s var(--ease-out); }
 .modal-enter-from .modal, .modal-leave-to .modal { transform: scale(0.97) translateY(8px); }
 
-/* ── Stats strip responsive ────────────────────────────── */
+/* ── Responsive ────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .page-header { padding: 24px 16px 20px; }
+  .page-title { font-size: 32px; }
+
+  .header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .header-right { width: 100%; }
+  .hdr-stat-block { flex: 1; }
+
+  .page-body { padding: 0 16px 16px; }
+}
+
 @media (max-width: 1100px) {
   .strip {
     flex-wrap: wrap;
@@ -1128,9 +1379,33 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .ticker-line { display: none; }
 }
 
-@media (max-width: 640px) {
-  .payouts-view { padding: 16px 12px; }
+@media (max-width: 900px) {
+  .cmd-bar {
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+  }
 
+  .filter-group {
+    padding: 8px 14px;
+    height: auto;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-wrap: wrap;
+  }
+
+  .bar-sep { display: none; }
+  .bar-grow { display: none; }
+
+  .btn-add {
+    border: none;
+    border-top: 1px solid rgba(240, 180, 41, 0.15);
+    padding: 11px 14px;
+    justify-content: center;
+    height: auto;
+  }
+}
+
+@media (max-width: 640px) {
   .strip .cell { flex: 1 1 45%; }
   .strip .cell:nth-last-child(-n+3) { border-bottom: 1px solid var(--border-subtle); }
   .strip .cell:nth-last-child(-n+2) { border-bottom: none; }
@@ -1257,9 +1532,5 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
 
   .btn-delete-sm:hover { background: var(--red-muted); color: var(--red); }
-
-  .controls-row { flex-direction: column; align-items: stretch; }
-  .filter-chips { justify-content: flex-start; }
-  .btn-add { justify-content: center; }
 }
 </style>

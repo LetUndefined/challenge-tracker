@@ -31,15 +31,12 @@ const avgProgress = computed(() => {
   return Math.round(eligible.reduce((s, r) => s + r.progress, 0) / eligible.length * 10) / 10
 })
 
-// Phase funnel — always show full Phase N sequence (fill gaps with 0)
 const phaseFunnel = computed(() => {
   const nonMasterRows = props.rows.filter(r => !r.is_master)
   const counts: Record<string, number> = {}
   for (const r of nonMasterRows) {
     counts[r.phase] = (counts[r.phase] ?? 0) + 1
   }
-
-  // Detect "Phase N" pattern and fill all from 1 to max (min 2)
   const phaseNums = Object.keys(counts)
     .map(p => p.match(/^Phase (\d+)$/i))
     .filter(Boolean)
@@ -49,7 +46,6 @@ const phaseFunnel = computed(() => {
     const key = `Phase ${i}`
     if (!(key in counts)) counts[key] = 0
   }
-
   return Object.entries(counts).sort(([a], [b]) => {
     const na = a.match(/^Phase (\d+)$/i)
     const nb = b.match(/^Phase (\d+)$/i)
@@ -60,7 +56,6 @@ const phaseFunnel = computed(() => {
   })
 })
 
-// Animated number — smoothly counts to new value on change
 function useAnimated(source: ComputedRef<number>, duration = 650) {
   const display = ref(source.value)
   let raf: number | null = null
@@ -72,7 +67,7 @@ function useAnimated(source: ComputedRef<number>, duration = 650) {
     const t0 = performance.now()
     function step(t: number) {
       const p = Math.min((t - t0) / duration, 1)
-      const e = 1 - Math.pow(1 - p, 3) // ease-out cubic
+      const e = 1 - Math.pow(1 - p, 3)
       display.value = from + delta * e
       if (p < 1) raf = requestAnimationFrame(step)
       else display.value = next
@@ -82,11 +77,11 @@ function useAnimated(source: ComputedRef<number>, duration = 650) {
   return display
 }
 
-const animBalance  = useAnimated(totalBalance)
-const animEquity   = useAnimated(totalEquity)
-const animDelta    = useAnimated(equityDelta)
-const animOpenPnl  = useAnimated(openPnl)
-const animCost     = useAnimated(totalCost)
+const animBalance = useAnimated(totalBalance)
+const animEquity  = useAnimated(totalEquity)
+const animDelta   = useAnimated(equityDelta)
+const animOpenPnl = useAnimated(openPnl)
+const animCost    = useAnimated(totalCost)
 
 function fmt(v: number, compact = false): string {
   const abs = Math.abs(v)
@@ -95,52 +90,40 @@ function fmt(v: number, compact = false): string {
   return `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function sign(v: number): string {
-  return v >= 0 ? '+' : ''
-}
+function sign(v: number): string { return v >= 0 ? '+' : '' }
 </script>
 
 <template>
-  <div class="strip-wrap">
-    <!-- Animated top scan line -->
+  <div class="module">
     <div class="scan-line" />
 
-    <div class="strip">
-
-      <!-- ACCOUNTS -->
-      <div class="cell">
-        <div class="cell-label">ACCOUNTS</div>
-        <div class="cell-value accent">{{ nonMaster.length }}</div>
-        <div class="cell-sub">
-          <span class="dot dot-green" />
-          <span class="sub-green">{{ connected }}</span>
-          <span class="sub-dim"> online</span>
-          <template v-if="disconnected > 0">
-            <span class="sub-sep">·</span>
-            <span class="sub-red">{{ disconnected }}</span>
-            <span class="sub-dim"> offline</span>
-          </template>
-        </div>
-      </div>
-
-      <div class="divider" />
+    <!-- ── THREE HERO PANELS ────────────────────────── -->
+    <div class="hero-grid">
 
       <!-- BALANCE -->
-      <div class="cell cell-wide">
-        <div class="cell-label">TOTAL BALANCE</div>
-        <div class="cell-value cyan">{{ fmt(animBalance, true) }}</div>
-        <div class="cell-sub">
+      <div class="hero-panel">
+        <div class="corner-glow glow-cyan" />
+        <div class="panel-header">
+          <span class="panel-tick tick-cyan" />
+          <span class="panel-lbl">TOTAL BALANCE</span>
+        </div>
+        <div class="panel-num cyan">{{ fmt(animBalance, true) }}</div>
+        <div class="panel-sub">
           <span class="sub-dim">{{ nonMaster.length }} account{{ nonMaster.length !== 1 ? 's' : '' }}</span>
         </div>
       </div>
 
-      <div class="divider" />
+      <div class="hero-sep" />
 
       <!-- EQUITY -->
-      <div class="cell cell-wide">
-        <div class="cell-label">TOTAL EQUITY</div>
-        <div class="cell-value green">{{ fmt(animEquity, true) }}</div>
-        <div class="cell-sub">
+      <div class="hero-panel">
+        <div class="corner-glow glow-green" />
+        <div class="panel-header">
+          <span class="panel-tick tick-green" />
+          <span class="panel-lbl">NET EQUITY</span>
+        </div>
+        <div class="panel-num green">{{ fmt(animEquity, true) }}</div>
+        <div class="panel-sub">
           <span :class="equityDelta >= 0 ? 'sub-green' : 'sub-red'">
             {{ sign(animDelta) }}{{ fmt(animDelta, true) }}
           </span>
@@ -148,353 +131,405 @@ function sign(v: number): string {
         </div>
       </div>
 
-      <div class="divider" />
+      <div class="hero-sep" />
 
-      <!-- OPEN P&L — live -->
-      <div class="cell cell-wide live-cell">
-        <div class="cell-label">
+      <!-- OPEN P&L -->
+      <div class="hero-panel">
+        <div class="corner-glow" :class="openPnl >= 0 ? 'glow-green' : 'glow-red'" />
+        <div class="panel-header">
           <span class="live-pip" />
-          OPEN P&amp;L
+          <span class="panel-lbl">OPEN P&amp;L</span>
+          <span class="live-chip">LIVE</span>
         </div>
-        <div class="cell-value" :class="openPnl >= 0 ? 'green' : 'red'">
+        <div class="panel-num" :class="openPnl >= 0 ? 'green' : 'red'">
           {{ sign(animOpenPnl) }}{{ fmt(animOpenPnl, true) }}
         </div>
-        <div class="cell-sub">
-          <span class="sub-dim">live unrealized</span>
-        </div>
-      </div>
-
-      <div class="divider" />
-
-      <!-- COST -->
-      <div class="cell cell-wide">
-        <div class="cell-label">TOTAL COST</div>
-        <div class="cell-value orange">{{ animCost > 0 ? fmt(animCost, true) : '—' }}</div>
-        <div class="cell-sub">
-          <span class="sub-dim">invested</span>
-        </div>
-      </div>
-
-      <div class="divider" />
-
-      <!-- AVG PROGRESS -->
-      <div class="cell">
-        <div class="cell-label">AVG PROGRESS</div>
-        <div
-          class="cell-value"
-          :class="avgProgress === null ? 'dim' : avgProgress >= 0 ? 'green' : 'red'"
-        >
-          {{ avgProgress === null ? '—' : sign(avgProgress) + avgProgress + '%' }}
-        </div>
-        <div class="cell-sub">
-          <span class="sub-dim">{{ nonMaster.filter(r => r.target_pct > 0).length }} challenges</span>
-        </div>
-      </div>
-
-      <div class="divider" />
-
-      <!-- PHASES -->
-      <div class="cell">
-        <div class="cell-label">PHASES</div>
-        <div class="phase-funnel">
-          <div
-            v-for="([phase, count], i) in phaseFunnel"
-            :key="phase"
-            class="phase-item"
-          >
-            <span class="phase-label" :class="phase === 'Master' ? 'phase-master' : ''">{{ phase }}:</span>
-            <span class="phase-count" :class="phase === 'Master' ? 'phase-master' : 'phase-normal'">{{ count }}</span>
-          </div>
-        </div>
-        <div class="cell-sub">
-          <span class="sub-dim">{{ props.rows.length }} total accounts</span>
-        </div>
-      </div>
-
-      <div class="divider" />
-
-      <!-- STREAK -->
-      <div class="cell">
-        <div class="cell-label">STREAK</div>
-        <div class="cell-value" :class="streak === null ? 'dim' : streak.direction === 'W' ? 'green' : 'red'">
-          {{ streak === null ? '—' : streak.direction + streak.count }}
-        </div>
-        <div class="cell-sub">
-          <span v-if="streak" :class="streak.direction === 'W' ? 'sub-green' : 'sub-red'">
-            {{ streak.direction === 'W' ? 'win' : 'loss' }} streak
-          </span>
-          <span v-else class="sub-dim">no data</span>
+        <div class="panel-sub">
+          <span class="sub-dim">unrealized — auto refresh 30s</span>
         </div>
       </div>
 
     </div>
 
-    <!-- Bottom ticker line -->
-    <div class="ticker-line" />
+    <!-- ── SECONDARY DATA STRIP ─────────────────────── -->
+    <div class="data-strip">
+
+      <div class="strip-cell">
+        <span class="strip-lbl">COST</span>
+        <span class="strip-val orange">{{ animCost > 0 ? fmt(animCost, true) : '—' }}</span>
+        <span class="strip-sub sub-dim">invested</span>
+      </div>
+
+      <div class="strip-sep" />
+
+      <div class="strip-cell">
+        <span class="strip-lbl">ACCOUNTS</span>
+        <span class="strip-val accent">{{ nonMaster.length }}</span>
+        <span class="strip-sub">
+          <span class="status-dot dot-on" />
+          <span class="sub-green">{{ connected }}</span>
+          <span class="sub-dim"> on</span>
+          <template v-if="disconnected > 0">
+            <span class="sub-dim"> · </span>
+            <span class="sub-red">{{ disconnected }}</span>
+            <span class="sub-dim"> off</span>
+          </template>
+        </span>
+      </div>
+
+      <div class="strip-sep" />
+
+      <div class="strip-cell strip-grow">
+        <span class="strip-lbl">AVG PROGRESS</span>
+        <span
+          class="strip-val"
+          :class="avgProgress === null ? 'sub-dim' : avgProgress >= 0 ? 'green' : 'red'"
+        >
+          {{ avgProgress === null ? '—' : sign(avgProgress) + avgProgress + '%' }}
+        </span>
+        <span class="strip-sub sub-dim">
+          {{ nonMaster.filter(r => r.target_pct > 0).length }} tracked
+        </span>
+      </div>
+
+      <div class="strip-sep" />
+
+      <div class="strip-cell">
+        <span class="strip-lbl">PHASES</span>
+        <div class="phase-row">
+          <span v-for="([phase, count]) in phaseFunnel" :key="phase" class="phase-item">
+            <span class="phase-key" :class="phase === 'Master' ? 'cyan' : ''">
+              {{ phase.replace('Phase ', 'P') }}
+            </span>
+            <span class="phase-cnt" :class="phase === 'Master' ? 'cyan' : ''">{{ count }}</span>
+          </span>
+        </div>
+        <span class="strip-sub sub-dim">distribution</span>
+      </div>
+
+      <div class="strip-sep" />
+
+      <div class="strip-cell">
+        <span class="strip-lbl">STREAK</span>
+        <span
+          class="strip-val"
+          :class="streak === null ? 'sub-dim' : streak.direction === 'W' ? 'green' : 'red'"
+        >
+          {{ streak === null ? '—' : streak.direction + streak.count }}
+        </span>
+        <span class="strip-sub">
+          <span v-if="streak" :class="streak.direction === 'W' ? 'sub-green' : 'sub-red'">
+            {{ streak.direction === 'W' ? 'consecutive wins' : 'consecutive losses' }}
+          </span>
+          <span v-else class="sub-dim">no trade data</span>
+        </span>
+      </div>
+
+    </div>
   </div>
 </template>
 
 <style scoped>
-/* ── Wrapper ─────────────────────────────────────────── */
-.strip-wrap {
+/* ── Outer module ────────────────────────────────────── */
+.module {
   position: relative;
-  margin: 16px 0 14px;
-  animation: fadeInUp 0.35s var(--ease-out) both;
+  margin: 20px 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  animation: fadeInUp 0.4s var(--ease-out) both;
 }
 
-/* ── Animated scan line (top) ────────────────────────── */
+/* ── Scan line ───────────────────────────────────────── */
 .scan-line {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--accent) 30%,
-    var(--cyan) 60%,
-    transparent 100%
-  );
-  opacity: 0.5;
-  animation: scan 4s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 20%, var(--cyan) 50%, var(--accent) 80%, transparent 100%);
   background-size: 200% 100%;
+  opacity: 0.55;
+  animation: scan 5s ease-in-out infinite;
+  z-index: 10;
+  pointer-events: none;
 }
 
 @keyframes scan {
-  0%   { background-position: -100% 0; opacity: 0.3; }
-  50%  { background-position: 100% 0;  opacity: 0.6; }
-  100% { background-position: -100% 0; opacity: 0.3; }
+  0%   { background-position: -100% 0; opacity: 0.25; }
+  50%  { background-position: 100% 0;  opacity: 0.65; }
+  100% { background-position: -100% 0; opacity: 0.25; }
 }
 
-/* ── Main strip ──────────────────────────────────────── */
-.strip {
-  display: flex;
-  align-items: stretch;
+/* ── Hero grid: 3 columns ────────────────────────────── */
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr 1px 1fr;
   background: var(--surface);
-  border: 1px solid var(--border-subtle);
-  border-top: none;
-  border-bottom: none;
-  overflow: hidden;
 }
 
-/* ── Ticker line (bottom) ────────────────────────────── */
-.ticker-line {
-  height: 1px;
+.hero-sep {
   background: var(--border-subtle);
+  margin: 18px 0;
 }
 
-/* ── Cells ───────────────────────────────────────────── */
-.cell {
-  flex: 1;
+/* ── Hero panel ──────────────────────────────────────── */
+.hero-panel {
+  position: relative;
+  padding: 24px 28px 22px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-  padding: 14px 18px;
-  min-width: 0;
+  gap: 8px;
+  overflow: hidden;
+  cursor: default;
+  transition: background 0.15s;
 }
 
-.cell-wide {
-  flex: 1.4;
+.hero-panel:hover {
+  background: var(--surface-hover);
 }
 
-.cell-label {
+/* Radial corner glow */
+.corner-glow {
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  pointer-events: none;
+  bottom: -100px;
+  left: -70px;
+  opacity: 0.7;
+}
+
+.glow-cyan  { background: radial-gradient(circle, rgba(24, 220, 255, 0.1) 0%, transparent 65%); }
+.glow-green { background: radial-gradient(circle, rgba(0, 212, 170, 0.1) 0%, transparent 65%); }
+.glow-red   { background: radial-gradient(circle, rgba(255, 71, 87, 0.1) 0%, transparent 65%); }
+
+/* Panel header row */
+.panel-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+}
+
+.panel-tick {
+  display: inline-block;
+  width: 3px;
+  height: 12px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.tick-cyan  { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+.tick-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+.panel-lbl {
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--text-tertiary);
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  white-space: nowrap;
+  color: var(--text-tertiary);
+  flex: 1;
 }
 
-.cell-value {
-  font-family: var(--font-mono);
-  font-size: 21px;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  white-space: nowrap;
-  color: var(--text-primary);
-}
-
-/* Value color variants */
-.cell-value.accent { color: var(--accent); }
-.cell-value.cyan   { color: var(--cyan); }
-.cell-value.green  { color: var(--green); }
-.cell-value.red    { color: var(--red); }
-.cell-value.orange { color: var(--orange); }
-.cell-value.dim    { color: var(--text-tertiary); }
-
-.cell-sub {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  white-space: nowrap;
-  line-height: 1;
-}
-
-.sub-green { color: var(--green); }
-.sub-red   { color: var(--red); }
-.sub-dim   { color: var(--text-tertiary); }
-.sub-sep   { color: var(--text-tertiary); margin: 0 1px; }
-
-/* ── Divider ─────────────────────────────────────────── */
-.divider {
-  width: 1px;
-  background: var(--border-subtle);
-  flex-shrink: 0;
-  margin: 10px 0;
-}
-
-/* ── Status dot ──────────────────────────────────────── */
-.dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.dot-green {
-  background: var(--green);
-  box-shadow: 0 0 5px var(--green);
-  animation: pulse-live 2.5s ease-in-out infinite;
-}
-
-/* ── Live cell ───────────────────────────────────────── */
-.live-cell {
-  position: relative;
-}
-
+/* Live indicator */
 .live-pip {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
   flex-shrink: 0;
   animation: pulse-live 2s ease-in-out infinite;
 }
 
-/* ── Responsive ──────────────────────────────────────── */
-@media (max-width: 1100px) {
-  .strip {
-    flex-wrap: wrap;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-  }
-
-  .strip-wrap {
-    /* On smaller screens, wrap cells into a card grid */
-  }
-
-  .cell {
-    flex: 1 1 30%;
-    border-bottom: 1px solid var(--border-subtle);
-    padding: 12px 16px;
-  }
-
-  .cell:nth-last-child(-n+3) {
-    border-bottom: none;
-  }
-
-  .divider {
-    display: none;
-  }
-
-  .scan-line {
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
-  }
-
-  .ticker-line {
-    display: none;
-  }
+.live-chip {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  padding: 2px 7px;
+  border-radius: 2px;
+  background: rgba(240, 180, 41, 0.1);
+  border: 1px solid rgba(240, 180, 41, 0.2);
+  color: var(--accent);
 }
 
-@media (max-width: 640px) {
-  .cell {
-    flex: 1 1 45%;
-  }
-
-  .cell:nth-last-child(-n+3) {
-    border-bottom: 1px solid var(--border-subtle);
-  }
-
-  .cell:nth-last-child(-n+2) {
-    border-bottom: none;
-  }
-
-  .cell-label {
-    font-size: 10px;
-    letter-spacing: 0.1em;
-  }
-
-  .cell-sub {
-    font-size: 11px;
-  }
-
-  .cell-value {
-    font-size: 19px;
-  }
-
-  .cell {
-    padding: 11px 14px;
-  }
+/* Big number */
+.panel-num {
+  font-family: var(--font-mono);
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
 }
 
-/* ── Phase funnel ────────────────────────────────────── */
-.phase-funnel {
+/* Footer sub-text */
+.panel-sub {
   display: flex;
   align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-  padding: 3px 0;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* ── Secondary data strip ────────────────────────────── */
+.data-strip {
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.strip-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 12px 22px;
+  min-width: 0;
+}
+
+.strip-grow {
+  flex: 1;
+}
+
+.strip-lbl {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.strip-val {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  white-space: nowrap;
+}
+
+.strip-sub {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.strip-sep {
+  width: 1px;
+  background: var(--border-subtle);
+  margin: 10px 0;
+  flex-shrink: 0;
+}
+
+/* ── Phase row ───────────────────────────────────────── */
+.phase-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
 .phase-item {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: baseline;
+  gap: 2px;
 }
 
-.phase-arrow {
+.phase-key {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-tertiary);
-  line-height: 1;
+  font-size: 9px;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
-.phase-count {
+.phase-cnt {
   font-family: var(--font-mono);
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: -0.03em;
-}
-
-.phase-normal {
+  letter-spacing: -0.02em;
   color: var(--text-primary);
 }
 
-.phase-master {
-  color: var(--cyan);
+/* ── Status dot ──────────────────────────────────────── */
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
-.phase-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  line-height: 1;
+.dot-on {
+  background: var(--green);
+  box-shadow: 0 0 4px var(--green);
+  animation: pulse-live 2.5s ease-in-out infinite;
 }
 
-.phase-label.phase-master {
-  color: var(--cyan);
+/* ── Colors ──────────────────────────────────────────── */
+.cyan   { color: var(--cyan); }
+.green  { color: var(--green); }
+.red    { color: var(--red); }
+.orange { color: var(--orange); }
+.accent { color: var(--accent); }
+
+.sub-green { color: var(--green); }
+.sub-red   { color: var(--red); }
+.sub-dim   { color: var(--text-tertiary); }
+
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-sep {
+    height: 1px;
+    width: auto;
+    margin: 0;
+  }
+
+  .data-strip {
+    flex-wrap: wrap;
+  }
+
+  .strip-sep {
+    display: none;
+  }
+
+  .strip-cell {
+    flex: 1 1 33%;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .strip-cell:nth-last-child(-n+2) {
+    border-bottom: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-panel {
+    padding: 18px 20px 16px;
+  }
+
+  .panel-num {
+    font-size: 28px;
+  }
+
+  .strip-cell {
+    flex: 1 1 45%;
+    padding: 10px 14px;
+  }
+
+  .strip-val {
+    font-size: 16px;
+  }
 }
 </style>

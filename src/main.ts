@@ -6,7 +6,6 @@ import './style.css'
 import ChallengesView from './views/ChallengesView.vue'
 import NotificationsView from './views/NotificationsView.vue'
 import PropFirmsView from './views/PropFirmsView.vue'
-import OwnersView from './views/OwnersView.vue'
 import AnalyticsView from './views/AnalyticsView.vue'
 import PayoutsView from './views/PayoutsView.vue'
 import HistoryView from './views/HistoryView.vue'
@@ -22,7 +21,6 @@ const router = createRouter({
     { path: '/history', component: HistoryView },
     { path: '/compare', component: PropFirmCompareView },
     { path: '/prop-firms', component: PropFirmsView },
-    { path: '/owners', component: OwnersView },
   ],
 })
 
