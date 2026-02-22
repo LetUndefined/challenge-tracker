@@ -308,9 +308,6 @@ function fmtPnl(v: number): string {
   const abs = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return v >= 0 ? `+$${abs}` : `-$${abs}`
 }
-function fmtAbs(v: number): string {
-  return `$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
 function fmtY(v: number): string {
   if (v === 0) return '0'
   const sign = v > 0 ? '+' : '-'
@@ -442,29 +439,6 @@ function wrColor(wr: number, has: boolean): string {
             {{ overallStats.trades > 0 ? (overallStats.profitFactor === Infinity ? '∞' : overallStats.profitFactor.toFixed(2)) : '—' }}
           </div>
           <div class="ms-sub">gross P / gross L</div>
-        </div>
-        <div class="ms-div" />
-
-        <div class="ms-cell">
-          <div class="ms-label">AVG WIN</div>
-          <div class="ms-value green">{{ overallStats.avgWin > 0 ? fmtAbs(overallStats.avgWin) : '—' }}</div>
-          <div class="ms-sub">per winner</div>
-        </div>
-        <div class="ms-div" />
-
-        <div class="ms-cell">
-          <div class="ms-label">AVG LOSS</div>
-          <div class="ms-value red">{{ overallStats.avgLoss < 0 ? fmtAbs(overallStats.avgLoss) : '—' }}</div>
-          <div class="ms-sub">per loser</div>
-        </div>
-        <div class="ms-div" />
-
-        <div class="ms-cell">
-          <div class="ms-label">EXPECTANCY</div>
-          <div class="ms-value" :style="{ color: pnlColor(overallStats.expectancy) }">
-            {{ overallStats.trades > 0 ? fmtPnl(overallStats.expectancy) : '—' }}
-          </div>
-          <div class="ms-sub">avg $ / trade</div>
         </div>
         <div class="ms-div" />
 
