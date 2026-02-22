@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useChallenges } from '@/composables/useChallenges'
 import { useMetaCopier } from '@/composables/useMetaCopier'
 import type { MetaCopierTrade } from '@/types'
@@ -243,8 +243,21 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
-  loadAnalytics()
   window.addEventListener('keydown', handleKeydown)
+
+  // Wait for challengeRows to be populated (they load async from App.vue),
+  // then load analytics once. This handles both direct navigation and
+  // arriving from another page where rows are already loaded.
+  const unwatch = watch(
+    () => challengeRows.value.length,
+    (len) => {
+      if (len > 0) {
+        unwatch()
+        loadAnalytics()
+      }
+    },
+    { immediate: true }
+  )
 })
 
 onUnmounted(() => {
