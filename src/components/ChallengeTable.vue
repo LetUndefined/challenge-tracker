@@ -15,6 +15,8 @@ const emit = defineEmits<{
 
 const { fetchSnapshots } = useChallenges()
 
+type MobileView = 'full' | 'compact'
+const mobileView = ref<MobileView>('full')
 const expandedId = ref<string | null>(null)
 const snapshotsCache = ref<Record<string, { timestamp: string; equity: number }[]>>({})
 const snapshotsLoading = ref<Record<string, boolean>>({})
@@ -271,6 +273,31 @@ function formatLastTrade(ts: string | null): string {
 
   <!-- Mobile: card layout -->
   <div class="mobile-cards">
+
+    <!-- View toggle -->
+    <div class="mobile-toggle-bar" v-if="rows.length > 0">
+      <button
+        :class="['mvt-btn', mobileView === 'full' && 'mvt-active']"
+        @click="mobileView = 'full'"
+        title="Full cards"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="5" width="18" height="4" rx="1"/><rect x="3" y="11" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/>
+        </svg>
+        Full
+      </button>
+      <button
+        :class="['mvt-btn', mobileView === 'compact' && 'mvt-active']"
+        @click="mobileView = 'compact'"
+        title="Compact grid"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>
+        </svg>
+        Grid
+      </button>
+    </div>
+
     <div v-if="rows.length === 0" class="empty-state-mobile">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
         <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -278,6 +305,8 @@ function formatLastTrade(ts: string | null): string {
       </svg>
       <span>No challenges found. Add one to get started.</span>
     </div>
+    <!-- ── Full cards ────────────────────────────────── -->
+    <template v-if="mobileView === 'full'">
     <div
       v-for="(row, i) in rows"
       :key="row.id"
@@ -403,6 +432,72 @@ function formatLastTrade(ts: string | null): string {
         />
       </div>
     </div>
+    </template><!-- /mobileView === 'full' -->
+
+    <!-- ── Compact grid ──────────────────────────────── -->
+    <div v-if="mobileView === 'compact'" class="compact-grid">
+      <div
+        v-for="(row, i) in rows"
+        :key="row.id"
+        class="compact-card"
+        :class="ddClass(row)"
+        :style="{ 'animation-delay': `${i * 25}ms` }"
+        @click="emit('edit', row)"
+      >
+        <!-- Name row -->
+        <div class="cc-name-row">
+          <span class="cc-alias">{{ row.alias }}</span>
+          <span v-if="row.open_positions.length > 0" class="live-trade-dot" />
+        </div>
+
+        <!-- Balance -->
+        <div class="cc-balance">{{ formatCurrency(row.balance) }}</div>
+
+        <!-- PNL -->
+        <div class="cc-pnl-row">
+          <span class="cc-pnl-label">PNL</span>
+          <template v-if="row.open_positions.length > 0">
+            <span
+              v-for="(pos, pi) in row.open_positions"
+              :key="pi"
+              class="cc-pnl-val"
+              :class="pnlClass(pos.profit)"
+            >{{ formatPnl(pos.profit) }}</span>
+          </template>
+          <span v-else class="cc-pnl-val text-ghost">—</span>
+        </div>
+
+        <!-- Progress bar + % -->
+        <div class="cc-progress">
+          <div class="progress-bidir cc-bidir">
+            <div class="progress-half loss-half">
+              <div
+                v-if="row.progress < 0 && row.target_pct > 0"
+                class="progress-fill-loss"
+                :style="{ width: `${Math.min(Math.abs(row.progress) / row.target_pct * 100, 100)}%` }"
+              />
+            </div>
+            <div class="progress-center" />
+            <div class="progress-half profit-half">
+              <template v-if="row.target_pct > 0">
+                <div class="tick" style="left: 25%" />
+                <div class="tick" style="left: 50%" />
+                <div class="tick" style="left: 75%" />
+              </template>
+              <div
+                v-if="row.progress > 0 && row.target_pct > 0"
+                :class="progressFillClass(row)"
+                :style="{ width: `${Math.min(row.progress / row.target_pct * 100, 100)}%` }"
+              />
+            </div>
+          </div>
+          <span class="cc-pct" :style="{ color: row.progress >= 0 ? 'var(--green)' : 'var(--red)' }">
+            {{ row.progress }}%
+          </span>
+        </div>
+      </div>
+    </div><!-- /compact-grid -->
+
   </div>
 </template>
 
@@ -1074,6 +1169,157 @@ function formatLastTrade(ts: string | null): string {
     margin-left: -16px;
     padding-left: 0;
     animation: slideDown 0.25s var(--ease-out);
+  }
+
+  /* ── Mobile view toggle bar ── */
+  .mobile-toggle-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    width: fit-content;
+    align-self: flex-end;
+    margin-bottom: 4px;
+  }
+
+  .mvt-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .mvt-btn:hover {
+    color: var(--text-secondary);
+  }
+
+  .mvt-active {
+    background: var(--accent-muted) !important;
+    border-color: rgba(240, 180, 41, 0.2) !important;
+    color: var(--accent) !important;
+  }
+
+  /* ── Compact grid ── */
+  .compact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .compact-card {
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 12px 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    animation: fadeInUp 0.3s var(--ease-out) both;
+    cursor: pointer;
+    transition: background 0.12s;
+    min-width: 0;
+  }
+
+  .compact-card:active {
+    background: var(--surface-hover);
+  }
+
+  .cc-name-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .cc-alias {
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cc-balance {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cc-pnl-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .cc-pnl-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+
+  .cc-pnl-val {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cc-pnl-val.pnl-positive { color: var(--green); }
+  .cc-pnl-val.pnl-negative { color: var(--red); }
+
+  .cc-progress {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .cc-bidir {
+    flex: 1;
+    height: 5px;
+  }
+
+  .cc-bidir .progress-half {
+    height: 5px;
+  }
+
+  .cc-bidir .progress-center {
+    height: 9px;
+  }
+
+  .cc-pct {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
   }
 }
 </style>
