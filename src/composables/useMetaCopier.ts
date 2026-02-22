@@ -84,9 +84,9 @@ export function useMetaCopier() {
     }
   }
 
-  async function fetchTrades(accountId: string): Promise<MetaCopierTrade[]> {
+  async function fetchTrades(accountId: string, daysBack = 30): Promise<MetaCopierTrade[]> {
     try {
-      return await getAccountTrades(accountId)
+      return await getAccountTrades(accountId, daysBack)
     } catch (e: any) {
       console.error(`Failed to fetch trades for ${accountId}:`, e)
       return []

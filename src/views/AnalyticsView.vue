@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useChallenges } from '@/composables/useChallenges'
 import { useMetaCopier } from '@/composables/useMetaCopier'
 import type { MetaCopierTrade } from '@/types'
@@ -150,7 +150,7 @@ async function loadAnalytics() {
     const results: AccountStats[] = []
 
     await Promise.all(rows.map(async (row) => {
-      const trades = await fetchTrades(row.metacopier_account_id)
+      const trades = await fetchTrades(row.metacopier_account_id, 365)
       const closed = trades.filter(t => t.close_time !== null)
       const sorted = [...closed].sort((a, b) => (a.close_time ?? '').localeCompare(b.close_time ?? ''))
 
@@ -191,7 +191,66 @@ async function loadAnalytics() {
   }
 }
 
-onMounted(loadAnalytics)
+// ── Day detail modal ─────────────────────────────────────────
+const selectedDay = ref<CalendarDay | null>(null)
+
+const selectedDayTrades = computed(() => {
+  if (!selectedDay.value?.date) return []
+  const date = selectedDay.value.date
+  return allClosedTrades.value
+    .filter(t => {
+      if ((t.close_time ?? '').slice(0, 10) !== date) return false
+      // Exclude master account trades (consistent with calendar P&L)
+      const row = challengeRows.value.find(r => r.metacopier_account_id === t.accountId)
+      return !row?.is_master
+    })
+    .sort((a, b) => (a.close_time ?? '').localeCompare(b.close_time ?? ''))
+})
+
+const selectedDayTotalPnl = computed(() =>
+  Math.round(selectedDayTrades.value.reduce((s, t) => s + (t.profit ?? 0), 0) * 100) / 100
+)
+
+function openDayModal(day: CalendarDay) {
+  if (day.isEmpty || day.pnl === 0) return
+  selectedDay.value = day
+}
+
+function closeDayModal() {
+  selectedDay.value = null
+}
+
+function formatModalDate(date: string): string {
+  const d = new Date(date + 'T12:00:00')
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()
+}
+
+function tradeDirection(type: string): 'BUY' | 'SELL' {
+  return type.toLowerCase().includes('buy') ? 'BUY' : 'SELL'
+}
+
+function fmtTime(dt: string | null): string {
+  if (!dt) return '—'
+  return new Date(dt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+function fmtPrice(p: number | null): string {
+  if (p === null) return '—'
+  return p.toFixed(5).replace(/\.?0+$/, '')
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') closeDayModal()
+}
+
+onMounted(() => {
+  loadAnalytics()
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
 
 // ── P&L Calendar heatmap ─────────────────────────────────────
 function buildCalendarMonth(year: number, month: number, pnlMap: Record<string, number>): CalendarMonth {
@@ -623,17 +682,17 @@ function wrColor(wr: number, has: boolean): string {
                 :key="day.date || `${wi}-${di}`"
                 class="cal-day"
                 :class="{
-                  'cal-empty':    day.isEmpty,
-                  'cal-today':    day.isToday,
-                  'cal-has-data': !day.isEmpty && day.pnl !== 0,
-                  'cal-zero':     !day.isEmpty && day.pnl === 0,
-                  'cal-pos':      !day.isEmpty && day.pnl > 0,
-                  'cal-neg':      !day.isEmpty && day.pnl < 0,
+                  'cal-empty':       day.isEmpty,
+                  'cal-today':       day.isToday,
+                  'cal-has-data':    !day.isEmpty && day.pnl !== 0,
+                  'cal-zero':        !day.isEmpty && day.pnl === 0,
+                  'cal-pos':         !day.isEmpty && day.pnl > 0,
+                  'cal-neg':         !day.isEmpty && day.pnl < 0,
+                  'cal-clickable':   !day.isEmpty && day.pnl !== 0,
                 }"
                 :style="getDayStyle(day)"
-                :title="!day.isEmpty
-                  ? (day.pnl !== 0 ? `${day.date}  ${fmtPnl(day.pnl)}` : `${day.date}  No trades`)
-                  : ''"
+                :title="!day.isEmpty ? (day.pnl !== 0 ? `${day.date}  ${fmtPnl(day.pnl)}` : `${day.date}  No trades`) : ''"
+                @click="openDayModal(day)"
               >
                 <template v-if="!day.isEmpty">
                   <span class="cal-day-num">{{ day.dayOfMonth }}</span>
@@ -649,6 +708,86 @@ function wrColor(wr: number, has: boolean): string {
 
     </div><!-- /.page-body -->
   </div>
+
+  <!-- ── Day detail modal ──────────────────────────────────── -->
+  <Teleport to="body">
+    <Transition name="modal">
+      <div v-if="selectedDay" class="modal-backdrop" @click.self="closeDayModal">
+        <div class="day-modal" role="dialog" aria-modal="true">
+
+          <!-- Modal header -->
+          <div class="modal-header">
+            <div class="modal-header-left">
+              <div class="modal-date-tag">
+                <span class="modal-tag-mark">▸</span>
+                {{ formatModalDate(selectedDay.date) }}
+              </div>
+              <div class="modal-summary">
+                <span
+                  class="modal-pnl"
+                  :style="{ color: pnlColor(selectedDayTotalPnl) }"
+                >{{ fmtPnl(selectedDayTotalPnl) }}</span>
+                <span class="modal-trade-sep">·</span>
+                <span class="modal-trade-count">{{ selectedDayTrades.length }} trade{{ selectedDayTrades.length !== 1 ? 's' : '' }}</span>
+              </div>
+            </div>
+            <button class="modal-close-btn" @click="closeDayModal" title="Close (Esc)">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Column headers -->
+          <div class="modal-col-header">
+            <span>SYMBOL</span>
+            <span>TYPE</span>
+            <span>LOTS</span>
+            <span class="col-prices">OPEN → CLOSE</span>
+            <span class="col-pnl">P&amp;L</span>
+          </div>
+
+          <!-- Trade list -->
+          <div class="modal-trades">
+            <div v-if="selectedDayTrades.length === 0" class="modal-empty">
+              No trades found for this day
+            </div>
+            <div
+              v-for="t in selectedDayTrades"
+              :key="t.id"
+              class="trade-card"
+              :class="tradeDirection(t.type) === 'BUY' ? 'trade-buy' : 'trade-sell'"
+            >
+              <div class="tc-symbol">{{ t.symbol }}</div>
+              <div
+                class="tc-type"
+                :class="tradeDirection(t.type) === 'BUY' ? 'type-buy' : 'type-sell'"
+              >{{ tradeDirection(t.type) }}</div>
+              <div class="tc-volume">{{ t.volume }}</div>
+              <div class="tc-prices col-prices">
+                <span class="tc-price">{{ fmtPrice(t.open_price) }}</span>
+                <span class="tc-arrow">→</span>
+                <span class="tc-price">{{ fmtPrice(t.close_price) }}</span>
+              </div>
+              <div class="tc-pnl col-pnl" :style="{ color: pnlColor(t.profit ?? 0) }">
+                {{ fmtPnl(t.profit ?? 0) }}
+              </div>
+              <div class="tc-meta">
+                <span class="tc-time">{{ fmtTime(t.close_time) }}</span>
+                <span class="tc-sep">·</span>
+                <span class="tc-acct">{{ t.alias }}</span>
+                <template v-if="(t.swap ?? 0) !== 0 || (t.commission ?? 0) !== 0">
+                  <span class="tc-sep">·</span>
+                  <span class="tc-fees">fees {{ fmtPnl((t.swap ?? 0) + (t.commission ?? 0)) }}</span>
+                </template>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -1316,6 +1455,271 @@ function wrColor(wr: number, has: boolean): string {
 .cal-pos .cal-day-pnl { color: var(--green); }
 .cal-neg .cal-day-pnl { color: var(--red); }
 
+/* Clickable trading days */
+.cal-clickable { cursor: pointer; }
+
+/* ── Modal ───────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.day-modal {
+  width: 100%;
+  max-width: 640px;
+  max-height: 82vh;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+/* Modal transition */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.2s var(--ease-out);
+}
+.modal-enter-active .day-modal,
+.modal-leave-active .day-modal {
+  transition: transform 0.22s var(--ease-out), opacity 0.2s var(--ease-out);
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+.modal-enter-from .day-modal {
+  transform: translateY(16px);
+  opacity: 0;
+}
+.modal-leave-to .day-modal {
+  transform: translateY(8px);
+  opacity: 0;
+}
+
+/* Modal header */
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+
+.modal-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-date-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+}
+
+.modal-tag-mark { font-size: 10px; opacity: 0.7; }
+
+.modal-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.modal-pnl {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.modal-trade-sep {
+  color: var(--border);
+  font-size: 14px;
+}
+
+.modal-trade-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.04em;
+}
+
+.modal-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+  margin-top: 2px;
+}
+.modal-close-btn:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* Column headers */
+.modal-col-header {
+  display: grid;
+  grid-template-columns: 1fr 52px 52px 1fr 100px;
+  gap: 8px;
+  padding: 8px 22px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.modal-col-header span {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+}
+.modal-col-header .col-pnl { text-align: right; }
+
+/* Trade list */
+.modal-trades {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-empty {
+  padding: 40px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.trade-card {
+  display: grid;
+  grid-template-columns: 1fr 52px 52px 1fr 100px;
+  grid-template-rows: auto auto;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.12s;
+}
+.trade-card:last-child { border-bottom: none; }
+.trade-card:hover { background: rgba(255, 255, 255, 0.025); }
+
+.trade-buy  { border-left: 2px solid rgba(0, 212, 170, 0.35); }
+.trade-sell { border-left: 2px solid rgba(255, 71, 87, 0.35); }
+
+.tc-symbol {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.tc-type {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding: 3px 6px;
+  border-radius: 3px;
+  text-align: center;
+  align-self: center;
+}
+.type-buy  { background: rgba(0, 212, 170, 0.15); color: var(--green); }
+.type-sell { background: rgba(255, 71, 87,  0.15); color: var(--red); }
+
+.tc-volume {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  align-self: center;
+}
+
+.tc-prices {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  align-self: center;
+}
+
+.tc-price {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.tc-arrow {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.tc-pnl {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: right;
+  align-self: center;
+}
+
+/* meta row spans full width */
+.tc-meta {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.tc-time {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-tertiary);
+}
+
+.tc-sep {
+  font-size: 9px;
+  color: var(--border);
+}
+
+.tc-acct {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.04em;
+}
+
+.tc-fees {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-tertiary);
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 1200px) {
   .metric-strip {
@@ -1377,5 +1781,26 @@ function wrColor(wr: number, has: boolean): string {
   .cal-day-num { font-size: 9px; }
   .cal-day-pnl { font-size: 11px; }
   .cal-dow { font-size: 9px; }
+
+  /* Modal mobile */
+  .modal-backdrop { padding: 0; align-items: flex-end; }
+  .day-modal {
+    max-width: 100%;
+    max-height: 88vh;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    border-bottom: none;
+  }
+  .modal-col-header,
+  .trade-card {
+    grid-template-columns: 1fr 44px 44px 1fr 80px;
+  }
+  .modal-header { padding: 16px 16px 14px; }
+  .modal-trades { padding: 0; }
+  .trade-card { padding: 10px 16px; }
+  .modal-col-header { padding: 6px 16px; }
+  .modal-pnl { font-size: 22px; }
+  .tc-symbol { font-size: 12px; }
+  .tc-pnl { font-size: 12px; }
+  .tc-price { font-size: 10px; }
 }
 </style>

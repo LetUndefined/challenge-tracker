@@ -240,10 +240,9 @@ export async function getOpenPositions(accountId: string): Promise<OpenPositionI
   }
 }
 
-export async function getAccountTrades(accountId: string): Promise<MetaCopierTrade[]> {
-  // Fetch last 30 days of history
+export async function getAccountTrades(accountId: string, daysBack = 30): Promise<MetaCopierTrade[]> {
   const endDate = new Date().toISOString()
-  const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const startDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString()
 
   const data = await apiFetch<any[]>(`/accounts/${accountId}/history/positions`, {
     start: startDate,
