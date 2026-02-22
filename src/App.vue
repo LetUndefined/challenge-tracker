@@ -1,5 +1,16 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import NavBar from './components/NavBar.vue'
+import { useMetaCopier } from '@/composables/useMetaCopier'
+import { useChallenges } from '@/composables/useChallenges'
+
+const { startAutoRefresh } = useMetaCopier()
+const { fetchChallenges } = useChallenges()
+
+onMounted(() => {
+  startAutoRefresh(30_000)
+  fetchChallenges()
+})
 </script>
 
 <template>

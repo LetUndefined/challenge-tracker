@@ -49,6 +49,8 @@ interface CalendarMonth {
   weeks: CalendarDay[][]
 }
 
+const TRADING_START = '2026-02-01'
+
 const loading = ref(false)
 const accountStats = ref<AccountStats[]>([])
 const dailyPnl = ref<DayPnl[]>([])
@@ -74,6 +76,14 @@ const canGoNext = computed(() => {
   return (
     calendarDate.value.getFullYear() < now.getFullYear() ||
     calendarDate.value.getMonth() < now.getMonth()
+  )
+})
+
+const canGoPrev = computed(() => {
+  const start = new Date(TRADING_START + 'T00:00:00')
+  return (
+    calendarDate.value.getFullYear() > start.getFullYear() ||
+    calendarDate.value.getMonth() > start.getMonth()
   )
 })
 
@@ -111,19 +121,21 @@ const overallStats = computed(() => {
   }
 })
 
-function buildDateRange(daysBack: number): { days: DayPnl[]; dayMap: Record<string, number> } {
+function buildDateRange(): { days: DayPnl[]; dayMap: Record<string, number> } {
   const days: DayPnl[] = []
   const dayMap: Record<string, number> = {}
-  for (let i = daysBack; i >= 0; i--) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const date = d.toISOString().slice(0, 10)
+  const cursor = new Date(TRADING_START + 'T12:00:00')
+  const today = new Date()
+  today.setHours(23, 59, 59, 999)
+  while (cursor <= today) {
+    const date = cursor.toISOString().slice(0, 10)
     days.push({
       date,
-      label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      label: cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       pnl: 0,
     })
     dayMap[date] = 0
+    cursor.setDate(cursor.getDate() + 1)
   }
   return { days, dayMap }
 }
@@ -132,15 +144,18 @@ async function loadAnalytics() {
   loading.value = true
   try {
     const rows = challengeRows.value
-    const { days, dayMap } = buildDateRange(365) // 1 year of history
+    const { days, dayMap } = buildDateRange()
+
+    // Only fetch back to TRADING_START
+    const daysBack = Math.ceil((Date.now() - new Date(TRADING_START + 'T00:00:00').getTime()) / 86_400_000) + 1
 
     const allClosed: ClosedTrade[] = []
     const results: AccountStats[] = []
 
     await Promise.all(rows.map(async (row) => {
       if (row.is_master) return  // skip master account entirely
-      const trades = await fetchTrades(row.metacopier_account_id, 365)
-      const closed = trades.filter(t => t.close_time !== null)
+      const trades = await fetchTrades(row.metacopier_account_id, daysBack)
+      const closed = trades.filter(t => t.close_time !== null && (t.close_time ?? '') >= TRADING_START)
       const sorted = [...closed].sort((a, b) => (a.close_time ?? '').localeCompare(b.close_time ?? ''))
 
       let wins = 0, losses = 0, grossProfit = 0, grossLoss = 0, netPnl = 0
@@ -625,7 +640,7 @@ function wrColor(wr: number, has: boolean): string {
 
         <!-- Month navigation bar -->
         <div class="cal-nav-bar">
-          <button class="cal-nav-btn" @click="prevMonth" title="Previous month">
+          <button class="cal-nav-btn" @click="prevMonth" :disabled="!canGoPrev" title="Previous month">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M9 11L5 7L9 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
