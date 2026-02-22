@@ -257,13 +257,19 @@ const monthlyPnl  = computed(() => {
 
 function getDayStyle(day: CalendarDay): Record<string, string> {
   if (day.isEmpty || day.pnl === 0) return {}
-  const intensity = Math.min(Math.abs(day.pnl) / calendarMaxAbs.value, 1)
-  const opacity   = 0.20 + intensity * 0.68
-  const rgb       = day.pnl > 0 ? '0, 212, 170' : '255, 71, 87'
-  return {
-    background:  `rgba(${rgb}, ${opacity})`,
-    borderColor: `rgba(${rgb}, ${Math.min(opacity + 0.12, 1)})`,
+  const intensity    = Math.min(Math.abs(day.pnl) / calendarMaxAbs.value, 1)
+  const bgOpacity    = 0.07 + intensity * 0.46
+  const borderOpacity = 0.22 + intensity * 0.60
+  const rgb          = day.pnl > 0 ? '0, 212, 170' : '255, 71, 87'
+  const result: Record<string, string> = {
+    background:  `rgba(${rgb}, ${bgOpacity})`,
+    borderColor: `rgba(${rgb}, ${borderOpacity})`,
   }
+  if (intensity > 0.25) {
+    const g = (intensity - 0.25) / 0.75
+    result.boxShadow = `0 2px 16px rgba(${rgb}, ${g * 0.22})`
+  }
+  return result
 }
 
 // ── Bar chart (last 30 days) ─────────────────────────────────
@@ -577,14 +583,19 @@ function wrColor(wr: number, has: boolean): string {
         <!-- Month navigation bar -->
         <div class="cal-nav-bar">
           <button class="cal-nav-btn" @click="prevMonth" title="Previous month">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M9 11L5 7L9 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
-          <span class="cal-nav-month">{{ calendarMonth.label }}</span>
+
+          <div class="cal-nav-label">
+            <span class="cal-nav-month-name">{{ calendarMonth.label.split(' ')[0] }}</span>
+            <span class="cal-nav-year">{{ calendarMonth.label.split(' ')[1] }}</span>
+          </div>
+
           <button class="cal-nav-btn" @click="nextMonth" :disabled="!canGoNext" title="Next month">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M5 3L9 7L5 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
         </div>
@@ -596,7 +607,12 @@ function wrColor(wr: number, has: boolean): string {
         <div v-else class="single-calendar">
           <!-- Day-of-week headers -->
           <div class="cal-dow-row">
-            <span v-for="d in ['MON','TUE','WED','THU','FRI','SAT','SUN']" :key="d" class="cal-dow">{{ d }}</span>
+            <span
+              v-for="(d, i) in ['M','T','W','T','F','S','S']"
+              :key="i"
+              class="cal-dow"
+              :class="{ 'cal-dow-weekend': i >= 5 }"
+            >{{ d }}</span>
           </div>
 
           <!-- Weeks -->
@@ -1100,12 +1116,12 @@ function wrColor(wr: number, has: boolean): string {
   white-space: nowrap;
 }
 
-/* Month navigation bar */
+/* ── Month navigation bar ───────────────────────────────── */
 .cal-nav-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 18px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
 }
@@ -1114,14 +1130,14 @@ function wrColor(wr: number, has: boolean): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: none;
+  width: 36px;
+  height: 36px;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  transition: border-color 0.18s, color 0.18s, background 0.18s, box-shadow 0.18s;
   flex-shrink: 0;
 }
 
@@ -1129,86 +1145,128 @@ function wrColor(wr: number, has: boolean): string {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-muted);
+  box-shadow: 0 0 10px rgba(240, 180, 41, 0.15);
 }
 
 .cal-nav-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.25;
   cursor: not-allowed;
 }
 
-.cal-nav-month {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-primary);
+.cal-nav-label {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
-/* Single-month calendar body */
+.cal-nav-month-name {
+  font-family: var(--font-ui);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.cal-nav-year {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+
+/* ── Calendar grid ──────────────────────────────────────── */
 .cal-loading {
-  height: 280px;
+  height: 320px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .single-calendar {
-  padding: 16px 18px 20px;
+  padding: 16px 18px 22px;
 }
 
 .cal-dow-row {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 5px;
+  margin-bottom: 5px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .cal-dow {
   font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 800;
   letter-spacing: 0.1em;
   color: var(--text-tertiary);
   text-align: center;
   padding: 4px 0;
 }
 
+.cal-dow-weekend {
+  color: rgba(255, 255, 255, 0.18);
+}
+
 .cal-weeks {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+  margin-top: 8px;
 }
 
 .cal-week {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 5px;
 }
 
+/* ── Cell ───────────────────────────────────────────────── */
 .cal-day {
-  min-height: 72px;
-  border-radius: 4px;
+  min-height: 82px;
+  border-radius: 6px;
   border: 1px solid var(--border-subtle);
-  background: rgba(255, 255, 255, 0.018);
+  background: rgba(255, 255, 255, 0.015);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: 7px 9px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 6px 12px;
   cursor: default;
-  transition: transform 0.12s, box-shadow 0.12s;
+  transition: transform 0.15s var(--ease-out), box-shadow 0.15s;
   position: relative;
   overflow: hidden;
 }
 
+/* colored bottom strip for trading days */
+.cal-pos::after,
+.cal-neg::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 12%;
+  right: 12%;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  opacity: 0.75;
+}
+.cal-pos::after { background: var(--green); }
+.cal-neg::after { background: var(--red); }
+
 .cal-has-data:hover {
-  transform: scale(1.04);
+  transform: scale(1.06);
   z-index: 20;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 }
 
+.cal-pos:hover  { box-shadow: 0 4px 24px rgba(0, 212, 170, 0.25), 0 1px 4px rgba(0,0,0,0.5); }
+.cal-neg:hover  { box-shadow: 0 4px 24px rgba(255, 71, 87, 0.25), 0 1px 4px rgba(0,0,0,0.5); }
+
 .cal-zero:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .cal-empty {
@@ -1217,21 +1275,27 @@ function wrColor(wr: number, has: boolean): string {
   pointer-events: none;
 }
 
+/* Today: bright amber ring */
 .cal-today {
-  box-shadow: inset 0 0 0 1.5px var(--accent) !important;
+  border-color: rgba(240, 180, 41, 0.6) !important;
+  box-shadow: inset 0 0 0 1px rgba(240, 180, 41, 0.25), 0 0 12px rgba(240, 180, 41, 0.1) !important;
+}
+.cal-has-data.cal-today:hover {
+  box-shadow: inset 0 0 0 1px rgba(240, 180, 41, 0.4), 0 4px 24px rgba(240, 180, 41, 0.25), 0 1px 4px rgba(0,0,0,0.5) !important;
 }
 
 .cal-day-num {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.22);
+  align-self: flex-start;
+  padding-left: 2px;
 }
 
 .cal-has-data .cal-day-num {
-  color: rgba(255, 255, 255, 0.75);
-  font-weight: 700;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .cal-today .cal-day-num {
@@ -1241,14 +1305,12 @@ function wrColor(wr: number, has: boolean): string {
 
 .cal-day-pnl {
   font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 800;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  text-shadow: 0 1px 8px currentColor;
 }
 
 .cal-pos .cal-day-pnl { color: var(--green); }
@@ -1285,15 +1347,15 @@ function wrColor(wr: number, has: boolean): string {
 
   .page-body { padding: 16px 16px 20px; }
 
-  .single-calendar { padding: 10px 10px 14px; }
-  .cal-week { gap: 3px; }
-  .cal-dow-row { gap: 3px; margin-bottom: 3px; }
+  .cal-nav-bar { padding: 12px 16px; }
+  .cal-nav-month-name { font-size: 18px; }
 
-  .cal-day { min-height: 68px; padding: 6px 5px; }
-  .cal-day-num { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.45); }
-  .cal-has-data .cal-day-num { color: rgba(255,255,255,0.9); }
-  .cal-day-pnl { font-size: 11px; font-weight: 800; }
-  .cal-dow { font-size: 9px; letter-spacing: 0; }
+  .single-calendar { padding: 12px 10px 16px; }
+  .cal-week { gap: 4px; }
+  .cal-dow-row { gap: 4px; }
+
+  .cal-day { min-height: 74px; padding: 8px 4px 12px; gap: 5px; }
+  .cal-day-pnl { font-size: 12px; }
 }
 
 @media (max-width: 640px) {
@@ -1302,13 +1364,18 @@ function wrColor(wr: number, has: boolean): string {
   .extremes-row { gap: 8px; }
   .ec-value { font-size: 17px; }
 
-  .single-calendar { padding: 8px 8px 12px; }
-  .cal-week { gap: 2px; }
-  .cal-dow-row { gap: 2px; }
+  .cal-nav-bar { padding: 10px 14px; }
+  .cal-nav-month-name { font-size: 16px; }
+  .cal-nav-year { font-size: 11px; }
+  .cal-nav-btn { width: 32px; height: 32px; }
 
-  .cal-day { min-height: 72px; padding: 6px 4px; }
-  .cal-day-num { font-size: 12px; }
+  .single-calendar { padding: 10px 8px 14px; }
+  .cal-week { gap: 3px; }
+  .cal-dow-row { gap: 3px; }
+
+  .cal-day { min-height: 72px; padding: 7px 3px 11px; border-radius: 5px; }
+  .cal-day-num { font-size: 9px; }
   .cal-day-pnl { font-size: 11px; }
-  .cal-dow { font-size: 8px; }
+  .cal-dow { font-size: 9px; }
 }
 </style>
