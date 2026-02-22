@@ -258,7 +258,7 @@ const monthlyPnl  = computed(() => {
 function getDayStyle(day: CalendarDay): Record<string, string> {
   if (day.isEmpty || day.pnl === 0) return {}
   const intensity = Math.min(Math.abs(day.pnl) / calendarMaxAbs.value, 1)
-  const opacity   = 0.12 + intensity * 0.72
+  const opacity   = 0.20 + intensity * 0.68
   const rgb       = day.pnl > 0 ? '0, 212, 170' : '255, 71, 87'
   return {
     background:  `rgba(${rgb}, ${opacity})`,
@@ -302,16 +302,6 @@ const xLabels = computed(() =>
     .filter((_, i) => i % 5 === 0 || i === barChartData.value.length - 1)
     .map(d => ({ label: d.label, x: d.x + d.barW / 2 }))
 )
-
-// ── Calendar mobile helpers ──────────────────────────────────
-const calendarDays = computed(() =>
-  calendarMonth.value.weeks.flat().filter(d => !d.isEmpty)
-)
-
-function getDowLabel(date: string): string {
-  const d = new Date(date + 'T12:00:00')
-  return d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()
-}
 
 // ── Formatting ───────────────────────────────────────────────
 function fmtPnl(v: number): string {
@@ -631,45 +621,13 @@ function wrColor(wr: number, has: boolean): string {
               >
                 <template v-if="!day.isEmpty">
                   <span class="cal-day-num">{{ day.dayOfMonth }}</span>
-                  <span v-if="day.pnl !== 0" class="cal-day-pnl">{{ fmtPnl(day.pnl) }}</span>
+                  <span v-if="day.pnl !== 0" class="cal-day-pnl">{{ fmtPnlShort(day.pnl) }}</span>
                 </template>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- ── Mobile list view ──────────────────────────── -->
-        <div v-if="!loading" class="cal-mobile-list">
-          <div
-            v-for="day in calendarDays"
-            :key="day.date"
-            class="cal-list-row"
-            :class="{
-              'cal-list-pos':   day.pnl > 0,
-              'cal-list-neg':   day.pnl < 0,
-              'cal-list-today': day.isToday,
-            }"
-          >
-            <span class="cal-list-dow">{{ getDowLabel(day.date) }}</span>
-            <span class="cal-list-date">{{ day.dayOfMonth }}</span>
-            <span class="cal-list-bar">
-              <span
-                v-if="day.pnl !== 0"
-                class="cal-list-bar-fill"
-                :style="{
-                  width: Math.min(Math.abs(day.pnl) / calendarMaxAbs * 100, 100) + '%',
-                  background: day.pnl > 0 ? 'var(--green)' : 'var(--red)',
-                }"
-              />
-            </span>
-            <span
-              class="cal-list-pnl"
-              :style="{ color: day.pnl > 0 ? 'var(--green)' : day.pnl < 0 ? 'var(--red)' : 'var(--text-tertiary)' }"
-            >
-              {{ day.pnl !== 0 ? fmtPnl(day.pnl) : '—' }}
-            </span>
-          </div>
-        </div>
 
       </div>
 
@@ -1296,73 +1254,6 @@ function wrColor(wr: number, has: boolean): string {
 .cal-pos .cal-day-pnl { color: var(--green); }
 .cal-neg .cal-day-pnl { color: var(--red); }
 
-/* ── Mobile list view (hidden on desktop) ────────────────── */
-.cal-mobile-list { display: none; }
-
-.cal-list-row {
-  display: grid;
-  grid-template-columns: 36px 28px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border-subtle);
-  transition: background 0.1s;
-}
-
-.cal-list-row:last-child { border-bottom: none; }
-
-.cal-list-pos { background: rgba(0, 212, 170, 0.04); }
-.cal-list-neg { background: rgba(255, 71, 87, 0.04); }
-
-.cal-list-today {
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-
-.cal-list-dow {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--text-tertiary);
-}
-
-.cal-list-date {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  text-align: right;
-}
-
-.cal-list-today .cal-list-date {
-  color: var(--accent);
-}
-
-.cal-list-bar {
-  height: 4px;
-  background: var(--border-subtle);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.cal-list-bar-fill {
-  display: block;
-  height: 100%;
-  border-radius: 2px;
-  opacity: 0.7;
-  transition: width 0.4s var(--ease-out);
-}
-
-.cal-list-pnl {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  text-align: right;
-  white-space: nowrap;
-  min-width: 88px;
-}
-
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 1200px) {
   .metric-strip {
@@ -1394,10 +1285,15 @@ function wrColor(wr: number, has: boolean): string {
 
   .page-body { padding: 16px 16px 20px; }
 
-  .single-calendar { padding: 12px 12px 16px; }
+  .single-calendar { padding: 10px 10px 14px; }
+  .cal-week { gap: 3px; }
+  .cal-dow-row { gap: 3px; margin-bottom: 3px; }
 
-  .cal-day { min-height: 58px; padding: 5px 6px; }
-  .cal-day-pnl { font-size: 10px; }
+  .cal-day { min-height: 68px; padding: 6px 5px; }
+  .cal-day-num { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.45); }
+  .cal-has-data .cal-day-num { color: rgba(255,255,255,0.9); }
+  .cal-day-pnl { font-size: 11px; font-weight: 800; }
+  .cal-dow { font-size: 9px; letter-spacing: 0; }
 }
 
 @media (max-width: 640px) {
@@ -1406,8 +1302,13 @@ function wrColor(wr: number, has: boolean): string {
   .extremes-row { gap: 8px; }
   .ec-value { font-size: 17px; }
 
-  /* Switch to list view on mobile */
-  .single-calendar { display: none; }
-  .cal-mobile-list { display: block; }
+  .single-calendar { padding: 8px 8px 12px; }
+  .cal-week { gap: 2px; }
+  .cal-dow-row { gap: 2px; }
+
+  .cal-day { min-height: 72px; padding: 6px 4px; }
+  .cal-day-num { font-size: 12px; }
+  .cal-day-pnl { font-size: 11px; }
+  .cal-dow { font-size: 8px; }
 }
 </style>
