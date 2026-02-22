@@ -77,16 +77,8 @@ const canGoNext = computed(() => {
   )
 })
 
-// ── Non-master filter ────────────────────────────────────────
-const nonMasterStats = computed(() =>
-  accountStats.value.filter(s => {
-    const row = challengeRows.value.find(r => r.id === s.id)
-    return !row?.is_master
-  })
-)
-
 const overallStats = computed(() => {
-  const stats = nonMasterStats.value
+  const stats = accountStats.value
   const trades = stats.reduce((s, a) => s + a.trades, 0)
   const wins   = stats.reduce((s, a) => s + a.wins,   0)
   const losses = stats.reduce((s, a) => s + a.losses, 0)
@@ -94,12 +86,8 @@ const overallStats = computed(() => {
   const grossProfit = stats.reduce((s, a) => s + a.grossProfit, 0)
   const grossLoss   = stats.reduce((s, a) => s + a.grossLoss,   0)
 
-  const nonMasterTrades = allClosedTrades.value.filter(t => {
-    const row = challengeRows.value.find(r => r.metacopier_account_id === t.accountId)
-    return !row?.is_master
-  })
-  const best  = nonMasterTrades.reduce((max, t) => Math.max(max, t.profit ?? 0), 0)
-  const worst = nonMasterTrades.reduce((min, t) => Math.min(min, t.profit ?? 0), 0)
+  const best  = allClosedTrades.value.reduce((max, t) => Math.max(max, t.profit ?? 0), 0)
+  const worst = allClosedTrades.value.reduce((min, t) => Math.min(min, t.profit ?? 0), 0)
   const recent = dailyPnl.value.slice(-30)
   const bestDay  = recent.reduce((max, d) => Math.max(max, d.pnl), 0)
   const worstDay = recent.reduce((min, d) => Math.min(min, d.pnl), 0)
@@ -150,6 +138,7 @@ async function loadAnalytics() {
     const results: AccountStats[] = []
 
     await Promise.all(rows.map(async (row) => {
+      if (row.is_master) return  // skip master account entirely
       const trades = await fetchTrades(row.metacopier_account_id, 365)
       const closed = trades.filter(t => t.close_time !== null)
       const sorted = [...closed].sort((a, b) => (a.close_time ?? '').localeCompare(b.close_time ?? ''))
@@ -163,7 +152,7 @@ async function loadAnalytics() {
         if (p > 0) { wins++; grossProfit += p; if (p > bestTrade) bestTrade = p }
         else if (p < 0) { losses++; grossLoss += p; if (p < worstTrade) worstTrade = p }
         const day = (t.close_time ?? '').slice(0, 10)
-        if (dayMap[day] !== undefined && !row.is_master) dayMap[day] += p
+        if (dayMap[day] !== undefined) dayMap[day] += p
         allClosed.push({ ...t, accountId: row.metacopier_account_id, alias: row.alias })
       }
 
@@ -198,12 +187,7 @@ const selectedDayTrades = computed(() => {
   if (!selectedDay.value?.date) return []
   const date = selectedDay.value.date
   return allClosedTrades.value
-    .filter(t => {
-      if ((t.close_time ?? '').slice(0, 10) !== date) return false
-      // Exclude master account trades (consistent with calendar P&L)
-      const row = challengeRows.value.find(r => r.metacopier_account_id === t.accountId)
-      return !row?.is_master
-    })
+    .filter(t => (t.close_time ?? '').slice(0, 10) === date)
     .sort((a, b) => (a.close_time ?? '').localeCompare(b.close_time ?? ''))
 })
 

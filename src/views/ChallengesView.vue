@@ -22,6 +22,7 @@ const {
 const search = ref('')
 const ownerFilter = ref('')
 const statusFilter = ref('')
+const showMaster = ref(false)
 const showModal = ref(false)
 const showEditModal = ref(false)
 const editingRow = ref<ChallengeRow | null>(null)
@@ -30,6 +31,7 @@ let snapshotInterval: ReturnType<typeof setInterval> | null = null
 
 const filteredRows = computed(() => {
   return challengeRows.value.filter(row => {
+    if (!showMaster.value && row.is_master) return false
     if (search.value) {
       const q = search.value.toLowerCase()
       const matchesSearch =
@@ -130,6 +132,7 @@ onUnmounted(() => {
         v-model:search="search"
         v-model:owner="ownerFilter"
         v-model:status="statusFilter"
+        v-model:showMaster="showMaster"
         :rows="challengeRows"
         @add-challenge="showModal = true"
       />

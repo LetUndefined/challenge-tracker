@@ -9,6 +9,7 @@ const props = defineProps<{
 const search = defineModel<string>('search', { default: '' })
 const ownerFilter = defineModel<string>('owner', { default: '' })
 const statusFilter = defineModel<string>('status', { default: '' })
+const showMaster = defineModel<boolean>('showMaster', { default: false })
 
 const emit = defineEmits<{
   addChallenge: []
@@ -90,6 +91,19 @@ const activeFilterCount = computed(() => {
         >
           <span class="status-pip" />Offline
         </button>
+      </div>
+    </div>
+
+    <div class="bar-sep" />
+
+    <!-- Master toggle -->
+    <div class="filter-group">
+      <span class="filter-key">MASTER</span>
+      <div class="chips">
+        <button
+          :class="['chip', showMaster ? 'chip-active' : '']"
+          @click="showMaster = !showMaster"
+        >{{ showMaster ? 'Visible' : 'Hidden' }}</button>
       </div>
     </div>
 
