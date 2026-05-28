@@ -21,7 +21,12 @@ const router = createRouter({
     { path: '/history', component: HistoryView },
     { path: '/compare', component: PropFirmCompareView },
     { path: '/prop-firms', component: PropFirmsView },
+    { path: '/:pathMatch(.*)*', redirect: () => { window.location.href = '/challenge-tracker/macro.html'; return '/' } },
   ],
+})
+
+router.beforeEach(() => {
+  window.location.href = '/challenge-tracker/macro.html'
 })
 
 createApp(App).use(router).mount('#app')

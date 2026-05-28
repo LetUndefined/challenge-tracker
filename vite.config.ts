@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
+// Macro scorecard is a separate entry at /macro/ — no shared nav with challenge-tracker
 
 export default defineConfig({
   base: '/challenge-tracker/',
@@ -46,6 +47,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main:  resolve(__dirname, 'index.html'),
+        macro: resolve(__dirname, 'macro.html'),
+      },
     },
   },
 })
